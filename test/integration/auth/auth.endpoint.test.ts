@@ -40,13 +40,13 @@ describe("Auth Endpoint", () => {
                 email: "test@gmail.com",
             });
 
-        const response = await request(app)
-            .post("/api/auth/register")
-            .send({
-                email: "test@gmail.com",
-                phoneNumber: "081234567890",
-                password: "password123",
-            });
+const response = await request(app)
+    .post("/api/v1/auth/register")
+    .send({
+        email: "test@gmail.com",
+        phoneNumber: "081234567890",
+        password: "password123",
+    });
 
         console.log(response.status);
         console.log(response.body);
@@ -65,7 +65,7 @@ validateRequest(registerSchema)
 it("should reject invalid email", async () => {
 
     const response = await request(app)
-        .post("/api/auth/register")
+        .post("/api/v1/auth/register")
         .send({
             email: "abc",
             phoneNumber: "081234567890",
