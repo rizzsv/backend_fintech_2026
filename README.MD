@@ -1,1 +1,1 @@
-![CI](https://github.com/rizzsv/https://github.com/rizzsv/fintech/actions/workflows/backend.yml/badge.svg)
+![CI](https://github.com/rizqsyafriano/fintech/actions/workflows/backend.yml/badge.svg)
