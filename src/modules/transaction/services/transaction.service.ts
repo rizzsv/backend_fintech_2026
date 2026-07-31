@@ -11,7 +11,7 @@ import { WalletPair } from "../../wallet/types/wallet.types";
 import { TransactionQueryDTO } from "../types/transaction.types";
 import { NotFoundError } from "../../../shared/errors/NotFoundError";
 import { AppError } from "../../../shared/errors/AppError";
-import { ReferenceUtils } from "../../../shared/utils/reference.utils";
+import { generateReferenceNumber } from "../../../shared/utils/reference.utils";
 import { walletCache } from "../../../shared/cache/wallet.cache";
 import { tracer } from "../../../shared/telemetry/tracer";
 import {
@@ -42,7 +42,7 @@ export class TransactionService {
     private async generateReferenceNumber() {
         while (true) {
             const referenceNumber =
-                ReferenceUtils.generateTransactionReference();
+                generateReferenceNumber("TRANSFER");
 
             const existing =
                 await new TransactionRepository().findByReferenceNumber(referenceNumber);
@@ -222,7 +222,6 @@ export class TransactionService {
                                 );
 
                             await transactionRepository.updateStatus(
-                                tx,
                                 transaction.id,
                                 TransactionStatus.PROCESSING
                             );
@@ -299,7 +298,6 @@ export class TransactionService {
                             );
 
                             await transactionRepository.updateStatus(
-                                tx,
                                 transaction.id,
                                 TransactionStatus.SUCCESS
                             );

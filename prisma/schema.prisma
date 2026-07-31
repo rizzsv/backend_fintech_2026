@@ -72,44 +72,57 @@ enum FraudCaseStatus {
   @@map("fraud_case_status")
 }
 
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  EXPIRED
+}
+
+enum LedgerEntryType {
+  CREDIT
+  DEBIT
+}
+
 // USER
 
 model User {
-  id           String  @id @default(uuid())
-  email        String  @unique
-  phoneNumber  String  @unique @map("phone_number")
-  passwordHash String  @map("password_hash")
-  firstName    String? @map("first_name")
-  lastName     String? @map("last_name")
+  id                         String                                                                                @id @default(uuid())
+  email                      String                                                                                @unique
+  phoneNumber                String         @map("phone_number")                                                   @unique
+  passwordHash               String         @map("password_hash")
+  firstName                  String?        @map("first_name")
+  lastName                   String?        @map("last_name")
 
   // KYC state — drives transaction limits via UserLimit
-  kycStatus KycStatus @default(PENDING) @map("kyc_status")
-  kycTier   KycTier   @default(BASIC) @map("kyc_tier")
+  kycStatus                  KycStatus      @map("kyc_status")                                                     @default(PENDING)
+  kycTier                    KycTier        @map("kyc_tier")                                                       @default(BASIC)
 
   // Store private storage PATHS only; generate signed URLs at app layer
-  kycDocumentPath String? @map("kyc_document_path")
-  kycSelfiePath   String? @map("kyc_selfie_path")
+  kycDocumentPath            String?        @map("kyc_document_path")
+  kycSelfiePath              String?        @map("kyc_selfie_path")
 
-  isActive  Boolean   @default(true) @map("is_active")
-  deletedAt DateTime? @map("deleted_at") // soft delete — never hard-delete financial actors
+  isActive                   Boolean        @map("is_active")                                                      @default(true)
+  deletedAt                  DateTime?      @map("deleted_at") // soft delete — never hard-delete financial actors
 
-  isEmailVerified Boolean @default(false)
+  isEmailVerified            Boolean                                                                               @default(false)
 
-  emailVerificationToken String?
+  emailVerificationToken     String?
 
   emailVerificationExpiresAt DateTime?
 
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  createdAt                  DateTime       @map("created_at")                                                     @default(now())
+  updatedAt                  DateTime       @map("updated_at")                                                     @updatedAt
 
-  // Relations
-  wallet        Wallet[]
-  sessions      Session[]
-  kycRequests   KycRequest[]
-  userLimit     UserLimit?
-  notifications Notification[]
-  fraudCases    FraudCase[]
-  auditLogs     AuditLog[]
+  //                         Relations
+  wallet                     Wallet[]
+  sessions                   Session[]
+  kycRequests                KycRequest[]
+  userLimit                  UserLimit?
+  notifications              Notification[]
+  fraudCases                 FraudCase[]
+  auditLogs                  AuditLog[]
+  payments                   Payment[]
 
   @@index([kycStatus], map: "idx_users_kyc_status")
   @@map("users")
@@ -118,33 +131,34 @@ model User {
 // WALLET
 
 model Wallet {
-  id       String @id @default(uuid())
-  userId   String @unique 
-  currency String @default("IDR")
+  id                   String                           @id @default(uuid())
+  userId               String                           @unique
+  currency             String                           @default("IDR")
 
   // Cached balance — source of truth is ledger_entries.
   // Must always equal: SELECT SUM(amount) FROM ledger_entries WHERE wallet_id = this.id
-  balance Decimal @default(0) @db.Decimal(18, 2)
+  balance              Decimal                          @default(0) @db.Decimal(18, 2)
 
   // Optimistic locking guard.
   // Every mutation: UPDATE wallets SET balance=?, version=version+1 WHERE id=? AND version=?
   // If 0 rows affected → someone else updated first → retry the transaction.
-  version Int @default(0)
+  version              Int                              @default(0)
 
-  isFrozen Boolean @default(false) @map("is_frozen")
+  isFrozen             Boolean       @map("is_frozen")  @default(false)
 
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  createdAt            DateTime      @map("created_at") @default(now())
+  updatedAt            DateTime      @map("updated_at") @updatedAt
 
-  // Relations
+  //                   Relations
   user                 User          @relation(fields: [userId], references: [id], onDelete: Restrict)
   outgoingTransactions Transaction[] @relation("FromWallet")
   incomingTransactions Transaction[] @relation("ToWallet")
   ledgerEntries        LedgerEntry[]
 
   // One wallet per currency per user
-  @@unique([userId, currency])
+  @@unique([userId,    currency])
   @@index([userId], map: "idx_wallets_user_id")
+
   @@map("wallets")
 }
 
@@ -153,44 +167,45 @@ model Wallet {
 // Wallet references (not user) for financial correctness.
 
 model Transaction {
-  id String @id @default(uuid())
+  id              String                                     @id @default(uuid())
 
-  // null for topup  (money enters from outside)
-  // null for withdrawal (money leaves to outside)
-  fromWalletId String? @map("from_wallet_id")
-  toWalletId   String? @map("to_wallet_id")
+  fromWalletId    String?            @map("from_wallet_id")
+  toWalletId      String            @map("to_wallet_id")
 
-  amount Decimal @db.Decimal(18, 2)
-  fee    Decimal @default(0) @db.Decimal(18, 2)
+  amount          Decimal                                    @db.Decimal(18,2)
+  fee             Decimal                                   @default(0) @db.Decimal(18,2)
 
-  transactionType TransactionType   @map("transaction_type")
-  status          TransactionStatus @default(PENDING)
+  transactionType TransactionType                            @map("transaction_type")
+  status          TransactionStatus
 
-  description     String? @db.VarChar(500)
-  referenceNumber String  @unique @map("reference_number") // internal ref, shown to user
-  idempotencyKey  String  @unique @map("idempotency_key") // prevents duplicate processing on retry
+  paymentChannel   String?           @map("payment_channel")
 
-  // For topup/withdrawal — which external rail handled it
-  paymentChannel    String? @map("payment_channel") // e.g. 'va_bca', 'gopay'
-  externalReference String? @map("external_reference") // gateway's own tx id
+  description     String?
 
-  // Flexible bag for gateway-specific data (VA number, bank code, etc.)
-  // Avoids schema migration every time a new channel is onboarded
+  referenceNumber String?           @map("reference_number") @unique
+  idempotencyKey  String            @map("idempotency_key") @unique
+  paymentType String?
   metadata Json?
+  
 
-  createdAt   DateTime  @default(now()) @map("created_at")
-  completedAt DateTime? @map("completed_at")
+  createdAt       DateTime          @map("created_at")       @default(now())
+  updatedAt       DateTime          @map("updated_at")       @updatedAt
+  completedAt     DateTime?         @map("completed_at")
 
-  // Relations
-  fromWallet    Wallet?          @relation("FromWallet", fields: [fromWalletId], references: [id], onDelete: Restrict)
-  toWallet      Wallet?          @relation("ToWallet", fields: [toWalletId], references: [id], onDelete: Restrict)
-  ledgerEntries LedgerEntry[]
-  logs          TransactionLog[]
+  fromWallet      Wallet?            @relation("FromWallet", fields: [fromWalletId], references: [id], onDelete: Restrict)
 
-  @@index([fromWalletId, createdAt], map: "idx_tx_from_wallet")
-  @@index([toWalletId, createdAt], map: "idx_tx_to_wallet")
-  @@index([status, createdAt], map: "idx_tx_status")
+  toWallet        Wallet            @relation("ToWallet", fields: [toWalletId], references: [id], onDelete: Restrict)
+  
+  externalReference String? @map("external_reference")
+
+  ledgerEntries   LedgerEntry[]
+
+  logs            TransactionLog[]
+
+  @@index([fromWalletId])
+  @@index([toWalletId])
   @@index([idempotencyKey], map: "idx_tx_idempotency")
+
   @@map("transactions")
 }
 
@@ -199,19 +214,19 @@ model Transaction {
 // NEVER UPDATE or DELETE a row; corrections = new offsetting entries.
 
 model LedgerEntry {
-  id            String @id @default(uuid())
-  transactionId String @map("transaction_id")
-  walletId      String @map("wallet_id")
+  id            String                             @id @default(uuid())
+  transactionId String      @map("transaction_id")
+  walletId      String      @map("wallet_id")
 
-  entryType    EntryType @map("entry_type")
-  amount       Decimal   @db.Decimal(18, 2)
-  balanceAfter Decimal   @map("balance_after") @db.Decimal(18, 2) // snapshot, makes statement queries cheap
+  entryType     EntryType   @map("entry_type")
+  amount        Decimal                            @db.Decimal(18, 2)
+  balanceAfter  Decimal     @map("balance_after")  @db.Decimal(18, 2) // snapshot, makes statement queries cheap
 
-  createdAt DateTime @default(now()) @map("created_at")
+  createdAt     DateTime    @map("created_at")     @default(now())
 
-  // Relations
-  transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Restrict)
-  wallet      Wallet      @relation(fields: [walletId], references: [id], onDelete: Restrict)
+  //            Relations
+  transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  wallet        Wallet      @relation(fields: [walletId], references: [id], onDelete: Restrict)
 
   @@index([walletId, createdAt], map: "idx_ledger_wallet")
   @@index([transactionId], map: "idx_ledger_transaction")
@@ -222,18 +237,18 @@ model LedgerEntry {
 // TRANSACTION LOGS — Status audit trail (append-only)
 
 model TransactionLog {
-  id            String @id @default(uuid())
-  transactionId String @map("transaction_id")
+  id            String                                    @id @default(uuid())
+  transactionId String             @map("transaction_id")
 
-  event        String
-  statusBefore TransactionStatus? @map("status_before")
-  statusAfter  TransactionStatus? @map("status_after")
+  event         String
+  statusBefore  TransactionStatus? @map("status_before")
+  statusAfter   TransactionStatus? @map("status_after")
 
-  metadata Json?
+  metadata      Json?
 
-  createdAt DateTime @default(now()) @map("created_at")
+  createdAt     DateTime           @map("created_at")     @default(now())
 
-  transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  transaction   Transaction        @relation(fields: [transactionId], references: [id], onDelete: Restrict)
 
   @@index([transactionId, createdAt], map: "idx_tx_logs_transaction")
   @@map("transaction_logs")
@@ -242,17 +257,17 @@ model TransactionLog {
 // USER LIMITS — KYC-tier based transaction limits
 
 model UserLimit {
-  userId String @id @map("user_id")
+  userId       String   @map("user_id")       @id
 
-  dailyLimit   Decimal @map("daily_limit") @db.Decimal(18, 2)
-  monthlyLimit Decimal @map("monthly_limit") @db.Decimal(18, 2)
-  dailyUsed    Decimal @default(0) @map("daily_used") @db.Decimal(18, 2)
-  monthlyUsed  Decimal @default(0) @map("monthly_used") @db.Decimal(18, 2)
+  dailyLimit   Decimal  @map("daily_limit")   @db.Decimal(18, 2)
+  monthlyLimit Decimal  @map("monthly_limit") @db.Decimal(18, 2)
+  dailyUsed    Decimal  @map("daily_used")    @default(0) @db.Decimal(18, 2)
+  monthlyUsed  Decimal  @map("monthly_used")  @default(0) @db.Decimal(18, 2)
 
-  lastResetAt DateTime @default(now()) @map("last_reset_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  lastResetAt  DateTime @map("last_reset_at") @default(now())
+  updatedAt    DateTime @map("updated_at")    @updatedAt
 
-  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  user         User     @relation(fields: [userId], references: [id], onDelete: Restrict)
 
   @@map("user_limits")
 }
@@ -260,22 +275,22 @@ model UserLimit {
 // SESSIONS — Refresh token management
 
 model Session {
-  id     String @id @default(uuid())
-  userId String @map("user_id")
+  id               String                                                         @id @default(uuid())
+  userId           String    @map("user_id")
 
-  refreshTokenHash String @map("refresh_token_hash") // never store raw tokens
+  refreshTokenHash String    @map("refresh_token_hash") // never store raw tokens
 
-  deviceName String? @map("device_name")
-  deviceIp   String? @map("device_ip") // IPv6-safe, max 45 chars
-  userAgent  String? @map("user_agent")
+  deviceName       String?   @map("device_name")
+  deviceIp         String?   @map("device_ip") // IPv6-safe, max 45 chars
+  userAgent        String?   @map("user_agent")
 
-  isActive  Boolean  @default(true) @map("is_active")
-  expiresAt DateTime @map("expires_at")
+  isActive         Boolean   @map("is_active")                                    @default(true)
+  expiresAt        DateTime  @map("expires_at")
 
-  createdAt    DateTime  @default(now()) @map("created_at")
-  lastActivity DateTime? @map("last_activity")
+  createdAt        DateTime  @map("created_at")                                   @default(now())
+  lastActivity     DateTime? @map("last_activity")
 
-  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  user             User      @relation(fields: [userId], references: [id], onDelete: Restrict)
 
   @@index([userId, isActive], map: "idx_sessions_user")
   @@index([refreshTokenHash], map: "idx_sessions_refresh_token")
@@ -285,21 +300,21 @@ model Session {
 // KYC REQUEST
 
 model KycRequest {
-  id     String @id @default(uuid())
-  userId String @map("user_id")
+  id           String                                                  @id @default(uuid())
+  userId       String    @map("user_id")
 
   // Store paths to private storage — generate signed URLs at app layer
-  documentPath String? @map("document_path")
-  selfiePath   String? @map("selfie_path")
+  documentPath String?   @map("document_path")
+  selfiePath   String?   @map("selfie_path")
 
-  status     KycStatus @default(PENDING)
-  reviewNote String?   @map("review_note") // rejection reason, etc.
-  reviewedAt DateTime? @map("reviewed_at")
+  status       KycStatus                                               @default(PENDING)
+  reviewNote   String?   @map("review_note") // rejection reason, etc.
+  reviewedAt   DateTime? @map("reviewed_at")
 
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  createdAt    DateTime  @map("created_at")                            @default(now())
+  updatedAt    DateTime  @map("updated_at")                            @updatedAt
 
-  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  user         User      @relation(fields: [userId], references: [id], onDelete: Restrict)
 
   @@index([userId, status], map: "idx_kyc_user_status")
   @@map("kyc_requests")
@@ -308,19 +323,19 @@ model KycRequest {
 // FRAUD CASE
 
 model FraudCase {
-  id     String @id @default(uuid())
-  userId String @map("user_id")
+  id         String                              @id @default(uuid())
+  userId     String          @map("user_id")
 
-  riskScore Int
-  reason    String
-  status    FraudCaseStatus @default(OPEN)
+  riskScore  Int
+  reason     String
+  status     FraudCaseStatus                     @default(OPEN)
 
-  metadata Json?
+  metadata   Json?
 
-  createdAt  DateTime  @default(now()) @map("created_at")
-  resolvedAt DateTime? @map("resolved_at")
+  createdAt  DateTime        @map("created_at")  @default(now())
+  resolvedAt DateTime?       @map("resolved_at")
 
-  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  user       User            @relation(fields: [userId], references: [id], onDelete: Restrict)
 
   @@index([userId, status], map: "idx_fraud_user_status")
   @@map("fraud_cases")
@@ -329,18 +344,18 @@ model FraudCase {
 // NOTIFICATION
 
 model Notification {
-  id     String @id @default(uuid())
-  userId String @map("user_id")
+  id        String                      @id @default(uuid())
+  userId    String   @map("user_id")
 
-  type String
+  type      String
 
-  title   String
-  message String
-  isRead  Boolean @default(false) @map("is_read")
+  title     String
+  message   String
+  isRead    Boolean  @map("is_read")    @default(false)
 
-  createdAt DateTime @default(now()) @map("created_at")
+  createdAt DateTime @map("created_at") @default(now())
 
-  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Restrict)
 
   @@index([userId, isRead], map: "idx_notifications_user_read")
   @@map("notifications")
@@ -349,23 +364,53 @@ model Notification {
 // AUDIT LOG — System-wide action trail
 
 model AuditLog {
-  id     String  @id @default(uuid())
-  userId String? @map("user_id") // nullable — system actions have no user
+  id          String   @id @default(uuid())
+  userId      String?  @map("user_id")
 
-  action   String
-  resource String
-  metadata Json?
+  actorType   String   @default("USER") @map("actor_type")
+  action      String
+  resource    String
+  entityId    String?  @map("entity_id")
+  status      String   @default("SUCCESS")
 
-  ipAddress String? @map("ip_address")
-  userAgent String? @map("user_agent")
+  requestId   String?  @map("request_id")
+  metadata    Json?
 
-  createdAt DateTime @default(now()) @map("created_at")
+  ipAddress   String?  @map("ip_address")
+  userAgent   String?  @map("user_agent")
+
+  createdAt   DateTime @default(now()) @map("created_at")
 
   user User? @relation(fields: [userId], references: [id], onDelete: Restrict)
 
   @@index([userId, createdAt], map: "idx_audit_user")
   @@index([resource, createdAt], map: "idx_audit_resource")
+  @@index([requestId], map: "idx_audit_request")
+  @@index([createdAt], map: "idx_audit_created")
+
   @@map("audit_logs")
+}
+model Payment {
+  id                String         @id @default(uuid())
+  userId            String
+  amount            Decimal        @db.Decimal(18,2)
+  status            PaymentStatus
+  paymentMethod     String
+  provider          String
+  referenceNumber   String         @unique
+  externalReference String?
+  paymentUrl        String?
+  qrUrl             String?
+  providerResponse  Json?
+  expiredAt         DateTime
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  user              User          @relation(fields:[userId], references:[id])
+
+  @@index([userId])
+  @@index([status])
+  @@index([referenceNumber])
 }
 
 // REFERENCE: typical P2P transfer flow (application layer)

@@ -3,6 +3,12 @@ import { walletRepository } from "../repositories/wallet.repository";
 import { walletCache } from "../../../shared/cache/wallet.cache";
 import { BusinessLogger } from "../../../shared/logger/business-logger";
 import { cacheCounter } from "../../../shared/metrics/metrics";
+import { retry } from "../../../shared/database/retry";
+import { Prisma } from "@prisma/client";
+import { prisma } from "../../../shared/config/database";
+import { OptimisLockError } from "../../../shared/errors/optimistic-lock.error";
+import { withSpan } from "../../../shared/telemetry/span";
+
 
 export class WalletService {
 
@@ -93,6 +99,45 @@ export class WalletService {
         }
 
         return limit;
+    }
+
+    async creditWallet(
+        walletId: string,
+        amount: Prisma.Decimal
+    ) {
+return withSpan(
+        "wallet.credit",
+        async () => {
+            return retry(async () => {
+                return prisma.$transaction(async (tx) => {
+
+                    const wallet = await tx.wallet.findUnique({
+                        where: {
+                            id: walletId,
+                        },
+                    });
+
+                    if (!wallet) {
+                        throw new NotFoundError("Wallet not found");
+                    }
+
+                    const updated =
+                        await walletRepository.updateBalanceOptimistic(
+                            tx,
+                            wallet.id,
+                            wallet.version,
+                            amount,
+                        );
+
+                    if (updated.count === 0) {
+                        throw new OptimisLockError();
+                    }
+
+                    return updated;
+                });
+            });
+        }
+    );
     }
 
     async getWallet(userId: string) {

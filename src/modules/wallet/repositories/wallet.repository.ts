@@ -1,11 +1,17 @@
-import { Prisma } from '@prisma/client';
+import { PaymentStatus, Prisma } from '@prisma/client';
 import {prisma} from '../../../shared/config/database'
 
+type Tx = Prisma.TransactionClient;
+
 export class WalletRepository {
-    async findByUserId(userId: string) {
-        return prisma.wallet.findFirst({
+    async findByUserId(userId: string, tx?: Tx) {
+
+        const db = tx ?? prisma;
+
+        return db.wallet.findFirst({
             where: {
-                userId
+                userId,
+                currency: 'IDR'
             },
             include: {
                 user: true
@@ -13,11 +19,139 @@ export class WalletRepository {
         });
     }
 
+        async findById(
+        walletId: string,
+        tx?: Prisma.TransactionClient
+    ) {
+
+        const db = tx ?? prisma;
+
+        return db.wallet.findUnique({
+            where: {
+                id: walletId
+            }
+        });
+
+    }
+
+        async create(
+        data: Prisma.WalletCreateInput,
+        tx?: Prisma.TransactionClient
+    ) {
+
+        const db = tx ?? prisma;
+
+        return db.wallet.create({
+            data
+        });
+
+    }
+
+    async credit(
+        walletId: string,
+        amount: Prisma.Decimal | number,
+        version: number,
+        tx: Prisma.TransactionClient = prisma
+    ) {
+        return tx.wallet.updateMany({
+            where: {
+              id: walletId,
+                version,  
+            },
+            data: {
+                balance: {
+                    increment: amount
+                },
+                version: {
+                    increment: 1
+                }
+            }
+        })
+    }
+
+     async updateBalanceWithVersion(
+        walletId: string,
+        currentVersion: number,
+        amount: number,
+        tx: Prisma.TransactionClient
+    ) {
+
+        return tx.wallet.updateMany({
+
+            where: {
+
+                id: walletId,
+
+                version: currentVersion,
+
+                isFrozen: false
+
+            },
+
+            data: {
+
+                balance: {
+
+                    increment: amount
+
+                },
+
+                version: {
+
+                    increment: 1
+
+                }
+
+            }
+
+        });
+
+    }
+
+    async updateBalanceOptimistic(
+        tx: Prisma.TransactionClient,
+        walletId: string,
+        version: number,
+        amount: Prisma.Decimal
+    ){
+        return tx.wallet.updateMany({
+            where: {
+                id: walletId,
+                version,
+            },
+            data: {
+                balance: {
+                    increment: amount
+                },
+                version: {
+                    increment: 1
+                }
+            }
+        })
+    }
+
+    async incrementBalance(
+        tx: Prisma.TransactionClient,
+        walletId: string,
+        amount: Prisma.Decimal
+    ) {
+        return tx.wallet.update({
+            where: {
+                id: walletId
+            },
+            data: {
+                balance: {
+                    increment: amount
+                }
+            }
+        })
+    }
+
     async updateBalance(
         tx: Prisma.TransactionClient,
         walletId: string,
         version: number,
-        newBalance: Prisma.Decimal
+        amount: Prisma.Decimal
     ) {
         return tx.wallet.updateMany({
             where: {
@@ -25,12 +159,67 @@ export class WalletRepository {
                 version
             },
             data: {
-                balance: newBalance,
+                balance: {
+                    increment: amount
+                },
                 version: {
                     increment: 1
                 }
             },
         });
+    }
+
+    async updatePaid(
+        tx: Prisma.TransactionClient,
+        referenceNumber: string,
+        externalReference: string,
+        providerResponse: Prisma.InputJsonValue
+    ) {
+        return tx.payment.update({
+            where: {
+                referenceNumber
+            },
+            data: {
+                status: PaymentStatus.SUCCESS,
+                paidAt: new Date(),
+                externalReference,
+                providerResponse: JSON.parse(
+                    JSON.stringify(providerResponse)
+                )
+            }
+        })
+    }
+
+    async updateCancelled(
+        tx: Prisma.TransactionClient,
+        referenceNumber: string
+    ) {
+        return tx.payment.update({
+            where: {
+                referenceNumber
+            },
+            data: {
+                status: PaymentStatus.FAILED
+            }
+        })
+    }
+
+    async updateFailed(
+        tx: Prisma.TransactionClient,
+        referenceNumber: string,
+        providerResponse: Prisma.InputJsonValue
+    ) {
+        return tx.payment.update({
+            where: {
+                referenceNumber
+            },
+            data: {
+                status: PaymentStatus.FAILED,
+                providerResponse: JSON.parse(
+                    JSON.stringify(providerResponse)
+                ),
+            },
+        })
     }
 
     async findUserLimit(userId: string) {
@@ -115,6 +304,55 @@ export class WalletRepository {
         },
     });
 }
+
+    async increaseBalance(
+        walletId: string,
+        amount: Prisma.Decimal | number,
+        tx?: Prisma.TransactionClient
+    ) {
+
+        const executor = tx ?? prisma;
+
+        return executor.wallet.update({
+            where: {
+                id: walletId,
+            },
+            data: {
+                balance: {
+                    increment: amount,
+                },
+                version: {
+                    increment: 1,
+                },
+            },
+        });
+
+    }
+
+    async decreaseBalance(
+        walletId: string,
+        amount: Prisma.Decimal | number,
+        tx?: Prisma.TransactionClient
+    ) {
+
+        const executor = tx ?? prisma;
+
+        return executor.wallet.update({
+            where: {
+                id: walletId,
+            },
+            data: {
+                balance: {
+                    decrement: amount,
+                },
+                version: {
+                    increment: 1,
+                },
+            },
+        });
+
+    }
+
 }
 
 export const walletRepository = new WalletRepository();

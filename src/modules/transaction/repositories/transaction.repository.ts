@@ -1,13 +1,25 @@
 import { prisma } from "../../../shared/config/database";
 import {
     Prisma,
+    Transaction,
     TransactionStatus,
     TransactionType,
 } from "@prisma/client";
 import { CreateTransactionRepositoryDTO } from "../types/transaction.types";
 import { CreateTransactionLogDTO } from "../types/transaction-log.types";
 
+type Tx = Prisma.TransactionClient;
+
 export class TransactionRepository {
+
+        async create(
+        data: Prisma.TransactionCreateInput,
+        tx: Tx
+    ): Promise<Transaction> {
+        return tx.transaction.create({
+            data,
+        })
+    }
     async findWalletByUserId(
         walletId: string,
         tx?: Prisma.TransactionClient
@@ -75,10 +87,22 @@ export class TransactionRepository {
         });
     }
 
+        async findById(id: string) {
+
+        return prisma.transaction.findUnique({
+            where: {
+                id,
+            },
+        });
+
+    }
+
     async findByIdempotencyKey(
         key: string,
+        tx?: Prisma.TransactionClient
     ) {
-        return prisma.transaction.findUnique({
+        const db = tx ?? prisma;
+        return db.transaction.findUnique({
             where: {
                 idempotencyKey: key
             }
@@ -172,12 +196,26 @@ export class TransactionRepository {
     }
 
     async findByReferenceNumber(
-        referenceNumber: string
+        referenceNumber: string,
+        tx?: Prisma.TransactionClient
     ) {
-        return prisma.transaction.findUnique({
+
+        const db = tx ?? prisma;
+        return db.transaction.findUnique({
             where: {
                 referenceNumber
             }
+        });
+    }
+
+        async findByExternalReference(
+        externalReference: string
+    ) {
+
+        return prisma.transaction.findFirst({
+            where: {
+                referenceNumber: externalReference
+            },
         });
     }
 
@@ -211,20 +249,71 @@ export class TransactionRepository {
     });
 }
 
-async updateStatus(
-    tx: Prisma.TransactionClient,
-    transactionId: string,
-    status: TransactionStatus
-) {
-    return tx.transaction.update({
-        where: {
-            id: transactionId,
-        },
-        data: {
-            status,
-        },
-    });
-}
+ async updateStatus(
+        id: string,
+        status: TransactionStatus,
+        tx?: Prisma.TransactionClient
+    ) {
+
+        const executor = tx ?? prisma;
+
+        return executor.transaction.update({
+            where: {
+                id,
+            },
+            data: {
+                status,
+            },
+        });
+
+    }
+
+     async complete(
+        id: string,
+        tx?: Prisma.TransactionClient
+    ) {
+
+        const executor = tx ?? prisma;
+
+        return executor.transaction.update({
+            where: {
+                id,
+            },
+            data: {
+                status: TransactionStatus.SUCCESS,
+                completedAt: new Date(),
+            },
+        });
+
+    }
+
+     async markCompleted(
+
+        id: string,
+
+        tx: Prisma.TransactionClient
+
+    ) {
+
+        return tx.transaction.update({
+
+            where: {
+
+                id
+
+            },
+
+            data: {
+
+                status: TransactionStatus.SUCCESS,
+
+                completedAt: new Date()
+
+            }
+
+        });
+
+    }
 
 }
 
