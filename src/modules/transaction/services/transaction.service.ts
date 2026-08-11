@@ -19,6 +19,12 @@ import {
 } from "@opentelemetry/api";
 import { BusinessLogger } from "../../../shared/logger/business-logger";
 import { transferCounter, transferDuration } from "../../../shared/metrics/metrics";
+import { DAILY_TRANSFER_LIMIT } from "../constants/transaction.constants";
+import { DailyTransferLimitError } from "../errors/daily-transfer-limit.error";
+import { auditService } from "../../audit/services/audit.services";
+import { fraudService } from "./fraud.service";
+import { NotificationType } from "../../notification/types/notification.types";
+import { transferReversalQueue } from "../queue/transfer-reversal.queue";
 
 
 
@@ -36,6 +42,51 @@ export class TransactionService {
                 409,
                 "A transaction with the same idempotency key already exists"
             )
+        }
+    }
+
+    private async validateDailyLimit(
+        userId: string,
+        walletId: string,
+        amount: Prisma.Decimal
+    ) {
+        const todayAmount =
+            await transactionRepository.getTodayTransferAmount(
+                walletId
+            );
+
+        const limit = new Prisma.Decimal(
+            DAILY_TRANSFER_LIMIT.BASIC
+        );
+
+        if (todayAmount.plus(amount).greaterThan(limit)) {
+
+            BusinessLogger.warn(
+                "Daily transfer limit exceeded",
+                {
+                    walletId,
+                    attemptedAmount: amount.toString(),
+                    todayAmount: todayAmount.toString(),
+                    limit: limit.toString(),
+                }
+            );
+
+            await auditService.log({
+                userId,
+                action: "TRANSFER_LIMIT_EXCEEDED",
+                resource: "TRANSFER",
+                entityId: walletId,
+                status: "FAILED",
+                metadata: {
+                    attemptedAmount: amount.toString(),
+                    todayAmount: todayAmount.toString(),
+                    limit: limit.toString(),
+                },
+            });
+
+            throw new DailyTransferLimitError(
+                DAILY_TRANSFER_LIMIT.BASIC
+            );
         }
     }
 
@@ -94,11 +145,11 @@ export class TransactionService {
     }
 
     private async validateTransfer(
-        balance: number,
-        amount: number
+        balance: Prisma.Decimal,
+        amount: Prisma.Decimal
     ) {
 
-        if (amount <= 0) {
+        if (balance.lessThan(amount)) {
 
             throw new AppError(
                 "Invalid amount",
@@ -108,7 +159,7 @@ export class TransactionService {
 
         }
 
-        if (balance < amount) {
+        if (balance.lessThan(amount)) {
 
             throw new AppError(
                 "Insufficient balance",
@@ -123,6 +174,7 @@ export class TransactionService {
     private async executeTransfer(
         wallets: WalletPair,
         dto: TransferDTO,
+        amount: Prisma.Decimal,
         referenceNumber: string
     ) {
 
@@ -301,22 +353,22 @@ export class TransactionService {
                                 transaction.id,
                                 TransactionStatus.SUCCESS
                             );
-                            
-                        //     if (process.env.ENABLE_EMAIL === "true") {
-                        //     await notificationService.transferSuccess(
-                        //         wallets.fromWallet.user.email,
-                        //         {
-                        //             receiver:
-                        //                 wallets.toWallet.user.firstName ??
-                        //                 wallets.toWallet.user.email,
-                        //             amount: amount.toString(),
-                        //             fee: fee.toString(),
-                        //             currency: "IDR",
-                        //             referenceNumber,
-                        //             transactionTime: new Date(),
-                        //         }
-                        //     );
-                        // }
+
+                            //     if (process.env.ENABLE_EMAIL === "true") {
+                            //     await notificationService.transferSuccess(
+                            //         wallets.fromWallet.user.email,
+                            //         {
+                            //             receiver:
+                            //                 wallets.toWallet.user.firstName ??
+                            //                 wallets.toWallet.user.email,
+                            //             amount: amount.toString(),
+                            //             fee: fee.toString(),
+                            //             currency: "IDR",
+                            //             referenceNumber,
+                            //             transactionTime: new Date(),
+                            //         }
+                            //     );
+                            // }
 
                             span.setStatus({
                                 code: 1, // OK
@@ -334,6 +386,16 @@ export class TransactionService {
                     return result;
 
                 } catch (error) {
+
+                    // await transferReversalQueue.add(
+                    //     "transfer-reversal",
+                    //     {
+                    //         transactionId: transaction.id,
+                    //         referenceNumber,
+                    //     }
+                    // )
+
+                    
 
                     span.recordException(error as Error);
 
@@ -371,7 +433,6 @@ export class TransactionService {
         userId: string,
         dto: TransferDTO
     ) {
-
         const timer = transferDuration.startTimer();
 
         try {
@@ -384,11 +445,10 @@ export class TransactionService {
                     amount: dto.amount,
                 }
             );
-
+            const amount = new Prisma.Decimal(dto.amount);
             await this.validateIdempotencyKey(
                 dto.idempotencyKey
             );
-
             const referenceNumber =
                 await this.generateReferenceNumber();
 
@@ -398,7 +458,6 @@ export class TransactionService {
                     referenceNumber,
                 }
             );
-
             const wallet =
                 await this.validateWallets(
                     userId,
@@ -412,20 +471,31 @@ export class TransactionService {
                     receiverWalletId: wallet.toWallet.id,
                 }
             );
-
             await this.validateTransfer(
-                wallet.fromWallet.balance.toNumber(),
-                dto.amount
+                wallet.fromWallet.balance,
+                amount
+            );
+
+            await this.validateDailyLimit(
+                userId,
+                wallet.fromWallet.id,
+                amount
+            );
+
+            await fraudService.validateTransfer(
+                wallet.fromWallet,
+                wallet.toWallet,
+                amount
             );
 
             BusinessLogger.info(
                 "Transfer validation completed"
             );
-
             const transaction =
                 await this.executeTransfer(
                     wallet,
                     dto,
+                    amount,
                     referenceNumber
                 );
 
@@ -436,14 +506,24 @@ export class TransactionService {
                     referenceNumber,
                     senderWalletId: wallet.fromWallet.id,
                     receiverWalletId: wallet.toWallet.id,
-                    amount: dto.amount,
+                    amount: amount.toString(),
                 }
             );
-
             await this.invalidateCache(
                 wallet.fromWallet.id,
                 wallet.toWallet.id
             );
+
+            await notificationService.publish({
+                type: NotificationType.TRANSFER_SUCCESS,
+                userId: userId,
+                title: "Transfer Successful",
+                message: `You have successfully transferred ${amount.toString()} IDR to wallet ${wallet.toWallet.id}. Reference number: ${referenceNumber}`,
+                metadata: {
+                    transactionId: transaction.id,
+                    referenceNumber
+                }
+            })
 
             BusinessLogger.info(
                 "Wallet cache invalidated",
@@ -458,14 +538,19 @@ export class TransactionService {
             });
 
             return transaction;
+
         } catch (error) {
+
             transferCounter.inc({
                 status: "failed",
             });
 
             throw error;
+
         } finally {
+
             timer();
+
         }
     } async getTransactions(
         userId: string,
@@ -527,7 +612,7 @@ export class TransactionService {
         }
 
         return TransactionMapper.toDetail(transaction);
-    }   
+    }
 }
 
 export const transactionService = new TransactionService();

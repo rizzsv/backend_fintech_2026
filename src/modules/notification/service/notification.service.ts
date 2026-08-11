@@ -1,7 +1,8 @@
 import { verificationTemplate } from "../templates/email-verification";
 import { transferSuccessTemplate } from "../templates/transfer-success";
-import { TransferSuccessPayload } from "../types/notification.types";
+import { TransferSuccessPayload, NotificationJob } from "../types/notification.types";
 import { emailService } from "./email.service";
+import { notificationQueue } from "../queue/notification.queue";
 
 export class NotificationService {
 
@@ -20,6 +21,15 @@ export class NotificationService {
 
         );
 
+    }
+
+    async publish(
+        job: NotificationJob
+    ) {
+        return notificationQueue.add(
+            job.type,
+            job
+        )
     }
 
     async sendVerificationEmail(

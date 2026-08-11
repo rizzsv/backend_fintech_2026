@@ -7,6 +7,9 @@ import basicAuth from "express-basic-auth";
 import { env } from "../config/env";
 import { paymentWebhookQueue } from "../../modules/payment/queue/payment-webhook.queue";
 import { paymentDLQ } from "../../modules/payment/dead-letter/payment-dlq.queue";
+import { notificationQueue } from "../../modules/notification/queue/notification.queue";
+import { transferReversalQueue } from "../../modules/transaction/queue/transfer-reversal.queue";
+import { withdrawalQueue } from "../../modules/withdrawal/queue/withdrawal.queue";
 
 const serverAdapter = new ExpressAdapter();
 
@@ -19,6 +22,12 @@ createBullBoard({
         new BullMQAdapter(paymentWebhookQueue),
 
         new BullMQAdapter(paymentDLQ),
+
+        new BullMQAdapter(notificationQueue),
+
+        new BullMQAdapter(transferReversalQueue),
+
+        new BullMQAdapter(withdrawalQueue),
     ],
     serverAdapter,
 });

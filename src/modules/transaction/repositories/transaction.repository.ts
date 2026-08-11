@@ -315,6 +315,51 @@ export class TransactionRepository {
 
     }
 
+    async getTodayTransferAmount(
+        walletId: string,
+        tx?: Tx
+    ) {
+        const db = tx ?? prisma;
+
+        const start = new Date();
+        start.setHours(0, 0, 0, 0);
+
+        const end = new Date();
+        end.setHours(23, 59, 59, 999);
+
+        const result = await db.transaction.aggregate({
+            _sum: {
+                amount: true
+            },
+            where: {
+                fromWalletId: walletId,
+                transactionType: TransactionType.TRANSFER,
+                status: TransactionStatus.SUCCESS,
+                createdAt: {
+                    gte: start,
+                    lte: end
+                }
+            }
+        });
+
+        return result._sum.amount ?? new Prisma.Decimal(0);
+    }
+
+        async countTransferLastMinute(
+        walletId: string
+    ) {
+        const oneMinuteAgo = new Date(Date.now() - 60000);
+        return prisma.transaction.count({
+            where: {
+                fromWalletId: walletId,
+                transactionType: "TRANSFER",
+                createdAt: {
+                    gte: oneMinuteAgo
+                }
+            }
+        })
+    }
+
 }
 
 export const transactionRepository = new TransactionRepository();

@@ -7,6 +7,10 @@ import { paymentWorker }from "./modules/payment/workers/payment.worker";
 import { paymentScheduler }from "./modules/payment/jobs/payment.scheduler";
 import { paymentWebhookWorker } from "./modules/payment/workers/payment-webhook.worker";
 import { paymentDLQWorker } from "./modules/payment/dead-letter/payment-dlq.worker";
+import {withdrawalReconciliationScheduler} from "./modules/withdrawal/jobs/withdrawal.reconciliation.scheduler";
+import "./modules/notification/workers/notification.worker";
+import "./modules/withdrawal/workers/withdrawal.worker";
+
 
 
 
@@ -45,7 +49,7 @@ async function bootstrap() {
 
         await paymentScheduler.bootstrap();
 
-
+        withdrawalReconciliationScheduler.start();
 
         logger.info(
             "Application bootstrap completed"
@@ -86,6 +90,8 @@ async function gracefulShutdown(
     );
 
 
+    
+
     try {
 
         if(server){
@@ -102,6 +108,7 @@ async function gracefulShutdown(
 
         }
 
+        withdrawalReconciliationScheduler.stop();
 
         await paymentWorker.close();
 

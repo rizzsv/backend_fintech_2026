@@ -32,6 +32,8 @@ const schema = z.object({
         .string()
         .transform((value) => value === "true"),
 
+    WITHDRAWAL_WEBHOOK_SECRET: z.string(),
+
     BULL_BOARD_USERNAME: z.string(),
     BULL_BOARD_PASSWORD: z.string(),
         

@@ -56,6 +56,16 @@ enum TransactionStatus {
   @@map("transaction_status")
 }
 
+enum withdrawalStatus {
+  PENDING
+  PROCESSING
+  SUCCESS
+  FAILED
+  CANCELLED
+
+  @@map("withdrawal_status")
+}
+
 enum EntryType {
   DEBIT
   CREDIT
@@ -82,6 +92,11 @@ enum PaymentStatus {
 enum LedgerEntryType {
   CREDIT
   DEBIT
+}
+
+enum WithdrawalMethod {
+  BANK_TRANSFER
+  EWALLET
 }
 
 // USER
@@ -123,6 +138,7 @@ model User {
   fraudCases                 FraudCase[]
   auditLogs                  AuditLog[]
   payments                   Payment[]
+  withdrawals Withdrawal[]
 
   @@index([kycStatus], map: "idx_users_kyc_status")
   @@map("users")
@@ -154,6 +170,7 @@ model Wallet {
   outgoingTransactions Transaction[] @relation("FromWallet")
   incomingTransactions Transaction[] @relation("ToWallet")
   ledgerEntries        LedgerEntry[]
+  withdrawals Withdrawal[]
 
   // One wallet per currency per user
   @@unique([userId,    currency])
@@ -217,6 +234,7 @@ model LedgerEntry {
   id            String                             @id @default(uuid())
   transactionId String      @map("transaction_id")
   walletId      String      @map("wallet_id")
+  description   String?
 
   entryType     EntryType   @map("entry_type")
   amount        Decimal                            @db.Decimal(18, 2)
@@ -411,6 +429,51 @@ model Payment {
   @@index([userId])
   @@index([status])
   @@index([referenceNumber])
+}
+
+model Withdrawal {
+  id                String             @id @default(uuid())
+
+  userId            String             @map("user_id")
+  walletId          String             @map("wallet_id")
+
+  amount            Decimal            @db.Decimal(18, 2)
+  fee               Decimal            @default(0) @db.Decimal(18, 2)
+  netAmount         Decimal            @map("net_amount") @db.Decimal(18, 2)
+
+  method            WithdrawalMethod
+
+  bankCode          String?            @map("bank_code")
+  bankName          String?            @map("bank_name")
+
+  accountNumber     String?            @map("account_number")
+  accountName       String?            @map("account_name")
+
+  referenceNumber   String             @unique @map("reference_number")
+  providerReference String?            @map("provider_reference")
+
+  status            withdrawalStatus   @default(PENDING)
+
+  providerResponse  Json?
+
+  processedAt       DateTime?          @map("processed_at")
+
+  failedReason      String?            @map("failed_reason")
+
+  idempotencyKey     String?             @map("idempotency_key") @unique
+
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
+
+  wallet            Wallet             @relation(fields: [walletId], references: [id], onDelete: Restrict)
+  user              User               @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId], map: "idx_withdrawal_user")
+  @@index([walletId], map: "idx_withdrawal_wallet")
+  @@index([status], map: "idx_withdrawal_status")
+  @@index([referenceNumber], map: "idx_withdrawal_reference")
+
+  @@map("withdrawals")
 }
 
 // REFERENCE: typical P2P transfer flow (application layer)
