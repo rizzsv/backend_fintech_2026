@@ -1,7 +1,7 @@
 import { Worker } from "bullmq";
 import { Prisma, withdrawalStatus } from "@prisma/client";
 import { prisma } from "../../../shared/config/database";
-import { redis } from "../../../shared/config/redis";
+import { redisConnection } from "../../../shared/queue/bullmq";
 import { BusinessLogger } from "../../../shared/logger/business-logger";
 import { withdrawalRepository } from "../repositories/withdrawal.repository";
 import { getWithdrawalProvider } from "../providers/provider.factory";
@@ -319,7 +319,7 @@ export const withdrawalWorker =
         {
 
             connection:
-                redis,
+                redisConnection,
 
 
             concurrency:

@@ -1,5 +1,5 @@
 import { prisma } from "../../../shared/config/database";
-import { EntryType, Prisma, TransactionStatus, TransactionType } from "@prisma/client";
+import { EntryType, NotificationChannel, Prisma, TransactionStatus, TransactionType } from "@prisma/client";
 import { TransactionMapper } from "../mapper/transaction.mapper";
 import { transactionRepository, TransactionRepository } from "../repositories/transaction.repository";
 import { walletRepository, WalletRepository } from "../../wallet/repositories/wallet.repository";
@@ -27,10 +27,7 @@ import { NotificationType } from "../../notification/types/notification.types";
 import { transferReversalQueue } from "../queue/transfer-reversal.queue";
 
 
-
 export class TransactionService {
-
-
 
     private async validateIdempotencyKey(idempotencyKey: string) {
         const existing =
@@ -62,7 +59,7 @@ export class TransactionService {
         if (todayAmount.plus(amount).greaterThan(limit)) {
 
             BusinessLogger.warn(
-                "Daily transfer limit exceeded",
+                "Daily transfer limit exceeded for user",
                 {
                     walletId,
                     attemptedAmount: amount.toString(),
@@ -354,22 +351,6 @@ export class TransactionService {
                                 TransactionStatus.SUCCESS
                             );
 
-                            //     if (process.env.ENABLE_EMAIL === "true") {
-                            //     await notificationService.transferSuccess(
-                            //         wallets.fromWallet.user.email,
-                            //         {
-                            //             receiver:
-                            //                 wallets.toWallet.user.firstName ??
-                            //                 wallets.toWallet.user.email,
-                            //             amount: amount.toString(),
-                            //             fee: fee.toString(),
-                            //             currency: "IDR",
-                            //             referenceNumber,
-                            //             transactionTime: new Date(),
-                            //         }
-                            //     );
-                            // }
-
                             span.setStatus({
                                 code: 1, // OK
                             });
@@ -395,7 +376,7 @@ export class TransactionService {
                     //     }
                     // )
 
-                    
+
 
                     span.recordException(error as Error);
 
@@ -499,6 +480,22 @@ export class TransactionService {
                     referenceNumber
                 );
 
+            await notificationService.CreateNotification({
+                userId,
+
+                type: NotificationType.TRANSFER_SUCCESS,
+
+                channel: NotificationChannel.IN_APP,
+
+                title: "Transfer Berhasil",
+
+                message: `Transfer sebesar ${dto.amount} berhasil.`,
+
+                resource: "TRANSACTION",
+
+                entityId: transaction.id,
+            });
+
             BusinessLogger.info(
                 "Transfer completed",
                 {
@@ -514,16 +511,25 @@ export class TransactionService {
                 wallet.toWallet.id
             );
 
-            await notificationService.publish({
+            await notificationService.CreateNotification({
+                userId,
                 type: NotificationType.TRANSFER_SUCCESS,
-                userId: userId,
-                title: "Transfer Successful",
-                message: `You have successfully transferred ${amount.toString()} IDR to wallet ${wallet.toWallet.id}. Reference number: ${referenceNumber}`,
-                metadata: {
-                    transactionId: transaction.id,
-                    referenceNumber
-                }
-            })
+                channel: NotificationChannel.IN_APP,
+                title: "Transfer Berhasil",
+                message: `Transfer sebesar ${amount.toString()} berhasil.`,
+                resource: "TRANSACTION",
+                entityId: transaction.id,
+            });
+
+            await notificationService.CreateNotification({
+                userId: wallet.toWallet.userId,
+                type: NotificationType.TRANSFER_RECEIVED,
+                channel: NotificationChannel.IN_APP,
+                title: "Transfer Masuk",
+                message: `Anda menerima transfer sebesar ${amount.toString()}.`,
+                resource: "TRANSACTION",
+                entityId: transaction.id,
+            });
 
             BusinessLogger.info(
                 "Wallet cache invalidated",

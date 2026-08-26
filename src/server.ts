@@ -8,8 +8,10 @@ import { paymentScheduler }from "./modules/payment/jobs/payment.scheduler";
 import { paymentWebhookWorker } from "./modules/payment/workers/payment-webhook.worker";
 import { paymentDLQWorker } from "./modules/payment/dead-letter/payment-dlq.worker";
 import {withdrawalReconciliationScheduler} from "./modules/withdrawal/jobs/withdrawal.reconciliation.scheduler";
-import "./modules/notification/workers/notification.worker";
 import "./modules/withdrawal/workers/withdrawal.worker";
+import "./modules/notification/workers/notification.worker";
+import "./modules/payment/workers/payment.worker";
+import { startNotificationQueueMetricCollector } from "./modules/notification/observability/notification.metrics";
 
 
 
@@ -23,10 +25,6 @@ async function bootstrap() {
 
 
         await sdk.start();
-
-
-        await redis.connect();
-
 
         const PORT =
             process.env.PORT || 3000;
@@ -49,6 +47,7 @@ async function bootstrap() {
 
         await paymentScheduler.bootstrap();
 
+        startNotificationQueueMetricCollector();
         withdrawalReconciliationScheduler.start();
 
         logger.info(

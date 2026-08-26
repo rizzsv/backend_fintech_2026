@@ -10,6 +10,7 @@ import { paymentDLQ } from "../../modules/payment/dead-letter/payment-dlq.queue"
 import { notificationQueue } from "../../modules/notification/queue/notification.queue";
 import { transferReversalQueue } from "../../modules/transaction/queue/transfer-reversal.queue";
 import { withdrawalQueue } from "../../modules/withdrawal/queue/withdrawal.queue";
+import { notificationDLQ } from "../../modules/notification/queue/notification-dlq.queue";
 
 const serverAdapter = new ExpressAdapter();
 
@@ -28,6 +29,10 @@ createBullBoard({
         new BullMQAdapter(transferReversalQueue),
 
         new BullMQAdapter(withdrawalQueue),
+
+        new BullMQAdapter(notificationQueue),
+
+        new BullMQAdapter(notificationDLQ),
     ],
     serverAdapter,
 });
@@ -38,7 +43,6 @@ const bullAuth =
         users: {
 
             [env.BULL_BOARD_USERNAME]: env.BULL_BOARD_PASSWORD,
-
         },
 
         challenge:true,
