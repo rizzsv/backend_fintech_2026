@@ -28,7 +28,7 @@ export class NotificationService {
             readAt: notification.readAt,
             sentAt: notification.sentAt,
             createdAt: notification.createdAt,
-        };
+        };  
     }
 
     async transferSuccess(

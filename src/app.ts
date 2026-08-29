@@ -9,6 +9,7 @@ import { paymentQueueHealthCheck } from "./shared/monitoring/queue.health";
 import healthRoutes from "./routes/health.routes";
 import metricsRoutes from "./routes/metrics.routes";
 import v1Routes from "./routes/v1.routes";
+import kycRoutes from "./modules/kyc/kyc.routes";
 
 import { globalRateLimiter } 
 from "./shared/middleware/rateLimiter.middleware";
@@ -118,6 +119,10 @@ app.use(
     v1Routes
 );
 
+app.use(
+    "/api/v1/kyc",
+    kycRoutes
+);
 
 app.use(
     errorHandler
