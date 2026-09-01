@@ -74,7 +74,7 @@ export interface WithdrawalResult {
     providerReference?:string;
 
 
-    status?:
+    status:
         | "SUCCESS"
         | "FAILED"
         | "PENDING";

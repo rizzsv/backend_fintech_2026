@@ -480,7 +480,7 @@ export class TransactionService {
                     referenceNumber
                 );
 
-            await notificationService.CreateNotification({
+            await notificationService.createNotification({
                 userId,
 
                 type: NotificationType.TRANSFER_SUCCESS,
@@ -511,7 +511,7 @@ export class TransactionService {
                 wallet.toWallet.id
             );
 
-            await notificationService.CreateNotification({
+            await notificationService.createNotification({
                 userId,
                 type: NotificationType.TRANSFER_SUCCESS,
                 channel: NotificationChannel.IN_APP,
@@ -521,7 +521,7 @@ export class TransactionService {
                 entityId: transaction.id,
             });
 
-            await notificationService.CreateNotification({
+            await notificationService.createNotification({
                 userId: wallet.toWallet.userId,
                 type: NotificationType.TRANSFER_RECEIVED,
                 channel: NotificationChannel.IN_APP,

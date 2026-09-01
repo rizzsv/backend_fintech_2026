@@ -181,7 +181,6 @@ export class WalletRepository {
             },
             data: {
                 status: PaymentStatus.SUCCESS,
-                paidAt: new Date(),
                 externalReference,
                 providerResponse: JSON.parse(
                     JSON.stringify(providerResponse)

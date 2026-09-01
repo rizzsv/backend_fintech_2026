@@ -133,7 +133,6 @@ class PaymentRepository {
             },
             data: {
                 status: PaymentStatus.SUCCESS,
-                paidAt: new Date(),
                 externalReference,
                 providerResponse: this.toNullableJsonValue(providerResponse),
             },
@@ -263,7 +262,7 @@ class PaymentRepository {
         return prisma.payment.findMany({
             where: {
                 status: PaymentStatus.PENDING,
-                expiresAt: {
+                expiredAt: {
                     lt: new Date(),
                 },
             }

@@ -51,7 +51,7 @@ export class DeviceRepository {
                     gte: since,
                 },
 
-                metaData: {
+                metadata: {
                     path: [
                         "deviceId",
                     ],
