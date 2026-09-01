@@ -1,4 +1,8 @@
-import { KycRequest, Prisma } from "@prisma/client";
+import {
+    KycRequest,
+    KycStatus,
+    Prisma,
+} from "@prisma/client";
 
 export interface KycRepository {
     findByUserId(
@@ -20,5 +24,22 @@ export interface KycRepository {
         id: string,
         data: Prisma.KycRequestUpdateInput,
         tx?: Prisma.TransactionClient
-    ): Promise<KycRequest>
+    ): Promise<KycRequest>;
+
+    review(
+        id: string,
+        data: {
+            status: KycStatus;
+            reviewNote?: string;
+            reviewedAt: Date;
+        },
+        tx?: Prisma.TransactionClient
+    ): Promise<KycRequest>;
+
+    resetForReverification(
+        kycId: string,
+        reviewNote: string,
+        reviewedAt: Date,
+        tx?: Prisma.TransactionClient
+    ): Promise<KycRequest>;
 }

@@ -1,4 +1,5 @@
 import express from "express";
+import cors from "cors";
 import pinoHttp from "pino-http";
 
 import { logger } from "./shared/logger/logger";
@@ -25,7 +26,19 @@ from "./shared/middleware/errorHandler.middleware";
 
 
 const app = express();
-
+const corsOptions = {
+    origin: [
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://localhost:3002",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:3001",
+        "http://127.0.0.1:3002",
+    ],
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+};
 
 app.use(
     requestIdMiddleware
@@ -52,6 +65,9 @@ app.use(
 
 );
 
+
+app.use(cors(corsOptions));
+app.options(/.*/, cors(corsOptions));
 
 app.use(
     express.json()

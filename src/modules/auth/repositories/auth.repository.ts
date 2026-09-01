@@ -1,4 +1,4 @@
-import {Prisma, TransactionStatus, User} from '@prisma/client';
+import {Prisma, TransactionStatus, User, UserRole} from '@prisma/client';
 import {prisma} from '../../../shared/config/database'
 
 export class AuthRepository {
@@ -22,6 +22,7 @@ export class AuthRepository {
             passwordHash: string;
             firstName?: string;
             lastName?: string;
+            role?: UserRole;
         }
     ) {
         return tx.user.create({

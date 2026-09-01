@@ -1,3 +1,4 @@
+import { UserRole } from '@prisma/client'
 import { prisma } from '../../../shared/config/database'
 import { authRepository } from '../repositories/auth.repository'
 import { hashPassword } from '../../../shared/utils/password.utils'
@@ -39,6 +40,8 @@ export class AuthService {
         const passwordHash =
             await hashPassword(dto.password);
 
+        const role = dto.role ?? UserRole.USER;
+
         return prisma.$transaction(async (tx) => {
             const user =
                 await authRepository.createUser(tx, {
@@ -47,6 +50,7 @@ export class AuthService {
                     passwordHash,
                     firstName: dto.firstName,
                     lastName: dto.lastName,
+                    role,
                 });
 
             await authRepository.createWallet(
