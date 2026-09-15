@@ -5,6 +5,7 @@ import {
 } from "express";
 
 import { DashboardService, dashboardService } from "../services/dashboard.service";
+import { AppError } from "../../../shared/errors/AppError";
 
 export class DashboardController {
     constructor(
@@ -20,18 +21,18 @@ export class DashboardController {
             const userId = req.user?.id;
 
             if (!userId) {
-                res.status(401).json({
-                    success: false,
-                    message: "Unauthorized",
-                });
-
-                return;
+                throw new AppError(
+                    "Unauthorized",
+                    401,
+                    "UNAUTHORIZED"
+                );
             }
 
             const dashboard = await this.dashboardService.getDashboard(userId);
 
             res.status(200).json({
                 success: true,
+                message: "Dashboard fetched successfully",
                 data: dashboard,
             });
         } catch (error) {

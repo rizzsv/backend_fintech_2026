@@ -8,6 +8,23 @@ export class UserRepository {
         });
     }
 
+    async findByIdForDashboard(id: string) {
+        return prisma.user.findUnique({
+            where: { id },
+            select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+                isActive: true,
+                isEmailVerified: true,
+                kycStatus: true,
+                kycTier: true,
+                has2FA: true,
+            },
+        });
+    }
+
     async findRoleById(userId: string): Promise<UserRole | null> {
         const user = await prisma.user.findUnique({
             where: { id: userId },

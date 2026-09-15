@@ -358,19 +358,199 @@ export class TransactionRepository {
     }
 
         async countTransferLastMinute(
-        walletId: string
-    ) {
-        const oneMinuteAgo = new Date(Date.now() - 60000);
-        return prisma.transaction.count({
-            where: {
-                fromWalletId: walletId,
-                transactionType: "TRANSFER",
-                createdAt: {
-                    gte: oneMinuteAgo
-                }
+           walletId: string
+        ) {
+           const oneMinuteAgo = new Date(Date.now() - 60000);
+           return prisma.transaction.count({
+               where: {
+                   fromWalletId: walletId,
+                   transactionType: "TRANSFER",
+                   createdAt: {
+                       gte: oneMinuteAgo
+                   }
+               }
+           })
+        }
+
+        async getRecentTransactions(userId: string, limit: number = 10) {
+           const wallet = await prisma.wallet.findFirst({
+               where: { userId },
+               select: { id: true },
+           });
+
+           if (!wallet) return [];
+
+           return prisma.transaction.findMany({
+               where: {
+                   OR: [
+                       { fromWalletId: wallet.id },
+                       { toWalletId: wallet.id },
+                   ],
+                   status: TransactionStatus.SUCCESS,
+               },
+               select: {
+                   id: true,
+                   amount: true,
+                   fee: true,
+                   transactionType: true,
+                   status: true,
+                   description: true,
+                   referenceNumber: true,
+                   createdAt: true,
+                   fromWalletId: true,
+                   toWalletId: true,
+               },
+               orderBy: { createdAt: 'desc' },
+               take: limit,
+           });
+        }
+
+        async getMonthlyStatistics(userId: string) {
+           const wallet = await prisma.wallet.findFirst({
+               where: { userId },
+               select: { id: true },
+           });
+
+           if (!wallet) {
+               return {
+                   totalTopUp: new Prisma.Decimal(0),
+                   totalTransfer: new Prisma.Decimal(0),
+                   totalWithdrawal: new Prisma.Decimal(0),
+               };
+           }
+
+           const now = new Date();
+           const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+           const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+           const [topUpResult, transferResult, withdrawalResult] = await Promise.all([
+               prisma.transaction.aggregate({
+                   _sum: { amount: true },
+                   where: {
+                       toWalletId: wallet.id,
+                       transactionType: TransactionType.TOPUP,
+                       status: TransactionStatus.SUCCESS,
+                       createdAt: { gte: startOfMonth, lt: endOfMonth },
+                   },
+               }),
+               prisma.transaction.aggregate({
+                   _sum: { amount: true },
+                   where: {
+                       fromWalletId: wallet.id,
+                       transactionType: TransactionType.TRANSFER,
+                       status: TransactionStatus.SUCCESS,
+                       createdAt: { gte: startOfMonth, lt: endOfMonth },
+                   },
+               }),
+               prisma.transaction.aggregate({
+                   _sum: { amount: true },
+                   where: {
+                       fromWalletId: wallet.id,
+                       transactionType: TransactionType.WITHDRAWAL,
+                       status: TransactionStatus.SUCCESS,
+                       createdAt: { gte: startOfMonth, lt: endOfMonth },
+                   },
+               }),
+           ]);
+
+           return {
+               totalTopUp: topUpResult._sum.amount ?? new Prisma.Decimal(0),
+               totalTransfer: transferResult._sum.amount ?? new Prisma.Decimal(0),
+               totalWithdrawal: withdrawalResult._sum.amount ?? new Prisma.Decimal(0),
+           };
+        }
+
+        async getCashFlowSeries(userId: string, days: number = 7) {
+               const wallet = await prisma.wallet.findFirst({
+                   where: { userId },
+                   select: { id: true },
+               });
+
+               if (!wallet) return [];
+
+               const now = new Date();
+               const startDate = new Date(now);
+               startDate.setDate(startDate.getDate() - days);
+               startDate.setHours(0, 0, 0, 0);
+
+               const transactions = await prisma.transaction.findMany({
+                   where: {
+                       OR: [
+                           { fromWalletId: wallet.id },
+                           { toWalletId: wallet.id },
+                       ],
+                       status: TransactionStatus.SUCCESS,
+                       createdAt: { gte: startDate },
+                   },
+                   select: {
+                       amount: true,
+                       fee: true,
+                       transactionType: true,
+                       createdAt: true,
+                       fromWalletId: true,
+                       toWalletId: true,
+                   },
+               });
+
+               const seriesMap = new Map<string, { income: Prisma.Decimal; expense: Prisma.Decimal }>();
+
+               for (let i = 0; i < days; i++) {
+                   const date = new Date(startDate);
+                   date.setDate(date.getDate() + i);
+                   const dateStr = date.toISOString().split('T')[0] as string;
+                   seriesMap.set(dateStr, { income: new Prisma.Decimal(0), expense: new Prisma.Decimal(0) });
+               }
+
+               for (const tx of transactions) {
+                   const dateStr = tx.createdAt.toISOString().split('T')[0] as string;
+                   const entry = seriesMap.get(dateStr) || { income: new Prisma.Decimal(0), expense: new Prisma.Decimal(0) };
+
+                   if (tx.toWalletId === wallet.id && (tx.transactionType === TransactionType.TOPUP || tx.transactionType === TransactionType.TRANSFER)) {
+                       entry.income = new Prisma.Decimal(entry.income).plus(tx.amount);
+                   } else if (tx.fromWalletId === wallet.id && (tx.transactionType === TransactionType.TRANSFER || tx.transactionType === TransactionType.WITHDRAWAL)) {
+                       entry.expense = new Prisma.Decimal(entry.expense).plus(tx.amount).plus(tx.fee);
+                   }
+
+                   seriesMap.set(dateStr, entry);
+               }
+
+               return Array.from(seriesMap.entries()).map(([date, values]) => ({
+                   date,
+                   income: values.income,
+                   expense: values.expense,
+                   net: new Prisma.Decimal(values.income).minus(values.expense),
+               }));
             }
-        })
-    }
+
+        async getPendingActivities(userId: string) {
+           const wallet = await prisma.wallet.findFirst({
+               where: { userId },
+               select: { id: true },
+           });
+
+           if (!wallet) return [];
+
+           return prisma.transaction.findMany({
+               where: {
+                   OR: [
+                       { fromWalletId: wallet.id },
+                       { toWalletId: wallet.id },
+                   ],
+                   status: {
+                       in: [TransactionStatus.PENDING, TransactionStatus.PROCESSING],
+                   },
+               },
+               select: {
+                   id: true,
+                   amount: true,
+                   transactionType: true,
+                   status: true,
+                   description: true,
+                   createdAt: true,
+               },
+               orderBy: { createdAt: 'desc' },
+           });
+        }
 
 }
 
