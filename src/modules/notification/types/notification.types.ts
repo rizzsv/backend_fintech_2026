@@ -15,6 +15,8 @@ export interface TransferSuccessPayload {
 }
 
 export enum NotificationType {
+    OTP = "OTP",
+
     TRANSFER_SUCCESS = "TRANSFER_SUCCESS",
     TRANSFER_RECEIVED = "TRANSFER_RECEIVED",
     TRANSFER_FAILED = "TRANSFER_FAILED",

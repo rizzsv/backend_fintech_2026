@@ -20,6 +20,8 @@ model User {
   kycDocumentPath            String?                 @map("kyc_document_path")
   kycSelfiePath              String?                 @map("kyc_selfie_path")
   isActive                   Boolean                 @default(true) @map("is_active")
+  has2FA                     Boolean                 @default(false) @map("has_2fa")
+  twoFactorMethod            String?                 @map("two_factor_method")
   deletedAt                  DateTime?               @map("deleted_at")
   createdAt                  DateTime                @default(now()) @map("created_at")
   updatedAt                  DateTime                @updatedAt @map("updated_at")
@@ -37,9 +39,27 @@ model User {
   userLimit                  UserLimit?
   wallet                     Wallet?
   withdrawals                Withdrawal[]
+  otpCodes                   OtpCode[]
 
   @@index([kycStatus], map: "idx_users_kyc_status")
   @@map("users")
+}
+
+model OtpCode {
+  id        String    @id @default(uuid())
+  userId    String
+  otpHash   String
+  purpose   OtpPurpose
+  attempts  Int       @default(0)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose, expiresAt])
+  @@index([userId, usedAt])
+  @@map("otp_codes")
 }
 
 model Wallet {
@@ -144,6 +164,7 @@ model Session {
   deviceIp         String?   @map("device_ip")
   userAgent        String?   @map("user_agent")
   isActive         Boolean   @default(true) @map("is_active")
+  is2FAVerified    Boolean   @default(false) @map("is_2fa_verified")
   expiresAt        DateTime  @map("expires_at")
   createdAt        DateTime  @default(now()) @map("created_at")
   lastActivity     DateTime? @map("last_activity")
@@ -326,6 +347,12 @@ enum KycStatus {
   REJECTED
 
   @@map("kyc_status")
+}
+
+enum OtpPurpose {
+  LOGIN_2FA
+  WITHDRAWAL
+  PASSWORD_RESET
 }
 
 enum UserRole {

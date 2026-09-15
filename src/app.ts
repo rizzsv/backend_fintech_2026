@@ -11,6 +11,7 @@ import healthRoutes from "./routes/health.routes";
 import metricsRoutes from "./routes/metrics.routes";
 import v1Routes from "./routes/v1.routes";
 import kycRoutes from "./modules/kyc/kyc.routes";
+import dashboardRoutes from "./modules/dashboard/dashboard.route";
 
 import { globalRateLimiter } 
 from "./shared/middleware/rateLimiter.middleware";
@@ -37,7 +38,12 @@ const corsOptions = {
     ],
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+    allowedHeaders: [
+        "Content-Type",
+        "Authorization",
+        "Idempotency-Key",
+        "X-Requested-With",
+    ],
 };
 
 app.use(
@@ -127,6 +133,11 @@ app.use(
 app.use(
     "/metrics",
     metricsRoutes
+);
+
+app.use(
+    "/api/v1",
+    dashboardRoutes
 );
 
 

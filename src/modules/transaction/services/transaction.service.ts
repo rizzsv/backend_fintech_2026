@@ -145,8 +145,9 @@ export class TransactionService {
         balance: Prisma.Decimal,
         amount: Prisma.Decimal
     ) {
+        const transferAmount = new Prisma.Decimal(amount);
 
-        if (balance.lessThan(amount)) {
+        if (transferAmount.lessThanOrEqualTo(0)) {
 
             throw new AppError(
                 "Invalid amount",
@@ -156,7 +157,7 @@ export class TransactionService {
 
         }
 
-        if (balance.lessThan(amount)) {
+        if (new Prisma.Decimal(balance).lessThan(transferAmount)) {
 
             throw new AppError(
                 "Insufficient balance",
@@ -272,7 +273,8 @@ export class TransactionService {
 
                             await transactionRepository.updateStatus(
                                 transaction.id,
-                                TransactionStatus.PROCESSING
+                                TransactionStatus.PROCESSING,
+                                tx
                             );
 
                             const sender =
@@ -280,7 +282,7 @@ export class TransactionService {
                                     tx,
                                     wallets.fromWallet.id,
                                     wallets.fromWallet.version,
-                                    senderNewBalance
+                                    feeResult.totalDebit.negated()
                                 );
 
                             if (sender.count === 0) {
@@ -296,7 +298,7 @@ export class TransactionService {
                                     tx,
                                     wallets.toWallet.id,
                                     wallets.toWallet.version,
-                                    receiverNewBalance
+                                    amount
                                 );
 
                             if (receiver.count === 0) {
@@ -348,7 +350,8 @@ export class TransactionService {
 
                             await transactionRepository.updateStatus(
                                 transaction.id,
-                                TransactionStatus.SUCCESS
+                                TransactionStatus.SUCCESS,
+                                tx
                             );
 
                             span.setStatus({
@@ -480,22 +483,6 @@ export class TransactionService {
                     referenceNumber
                 );
 
-            await notificationService.createNotification({
-                userId,
-
-                type: NotificationType.TRANSFER_SUCCESS,
-
-                channel: NotificationChannel.IN_APP,
-
-                title: "Transfer Berhasil",
-
-                message: `Transfer sebesar ${dto.amount} berhasil.`,
-
-                resource: "TRANSACTION",
-
-                entityId: transaction.id,
-            });
-
             BusinessLogger.info(
                 "Transfer completed",
                 {
@@ -506,30 +493,42 @@ export class TransactionService {
                     amount: amount.toString(),
                 }
             );
-            await this.invalidateCache(
-                wallet.fromWallet.id,
-                wallet.toWallet.id
-            );
-
-            await notificationService.createNotification({
-                userId,
-                type: NotificationType.TRANSFER_SUCCESS,
-                channel: NotificationChannel.IN_APP,
-                title: "Transfer Berhasil",
-                message: `Transfer sebesar ${amount.toString()} berhasil.`,
-                resource: "TRANSACTION",
-                entityId: transaction.id,
-            });
-
-            await notificationService.createNotification({
-                userId: wallet.toWallet.userId,
-                type: NotificationType.TRANSFER_RECEIVED,
-                channel: NotificationChannel.IN_APP,
-                title: "Transfer Masuk",
-                message: `Anda menerima transfer sebesar ${amount.toString()}.`,
-                resource: "TRANSACTION",
-                entityId: transaction.id,
-            });
+            try {
+                await Promise.all([
+                    notificationService.createNotification({
+                        userId,
+                        type: NotificationType.TRANSFER_SUCCESS,
+                        channel: NotificationChannel.IN_APP,
+                        title: "Transfer Berhasil",
+                        message: `Transfer sebesar ${amount.toString()} berhasil.`,
+                        resource: "TRANSACTION",
+                        entityId: transaction.id,
+                    }),
+                    notificationService.createNotification({
+                        userId: wallet.toWallet.userId,
+                        type: NotificationType.TRANSFER_RECEIVED,
+                        channel: NotificationChannel.IN_APP,
+                        title: "Transfer Masuk",
+                        message: `Anda menerima transfer sebesar ${amount.toString()}.`,
+                        resource: "TRANSACTION",
+                        entityId: transaction.id,
+                    }),
+                    this.invalidateCache(
+                        wallet.fromWallet.id,
+                        wallet.toWallet.id
+                    ),
+                ]);
+            } catch (sideEffectError) {
+                BusinessLogger.warn(
+                    "Transfer completed but post-transfer side effect failed",
+                    {
+                        transactionId: transaction.id,
+                        error: sideEffectError instanceof Error
+                            ? sideEffectError.message
+                            : "Unknown side effect error",
+                    }
+                );
+            }
 
             BusinessLogger.info(
                 "Wallet cache invalidated",

@@ -1,5 +1,5 @@
 import crypto from "crypto";
-import { LedgerEntryType, PaymentStatus, Prisma, TransactionType } from "@prisma/client";
+import { LedgerEntryType, NotificationChannel, PaymentStatus, Prisma, TransactionType } from "@prisma/client";
 import { Request } from "express";
 import { env } from "../../../shared/config/env";
 import { prisma } from "../../../shared/config/database";
@@ -15,6 +15,8 @@ import { AuditAction, AuditActorType, AuditResource } from "../../audit/constant
 import { auditService } from "../../audit/services/audit.services";
 import {injectTraceContext} from "../../../shared/telemetry/worker-tracing";
 import { withSpan } from "../../../shared/telemetry/span";
+import { notificationService } from "../../notification/service/notification.service";
+import { NotificationType } from "../../notification/types/notification.types";
 
 
 interface MidtransNotification {
@@ -163,6 +165,23 @@ export class PaymentWebhookService {
                     description: "Topup Success",
                 },
             });
+
+            await notificationService.createNotification(
+                {
+                    userId: payment.userId,
+                    type: NotificationType.TOPUP_SUCCESS,
+                    channel: NotificationChannel.IN_APP,
+                    title: "Top up berhasil",
+                    message: `Top up sebesar ${payment.amount.toString()} berhasil masuk ke wallet Anda.`,
+                    resource: "PAYMENT",
+                    entityId: payment.id,
+                    metadata: {
+                        referenceNumber: payment.referenceNumber,
+                        amount: payment.amount.toString(),
+                    },
+                },
+                tx
+            );
 
             await auditService.log(
 

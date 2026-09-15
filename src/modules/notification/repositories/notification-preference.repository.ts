@@ -21,10 +21,13 @@ async createDefault(
     tx?: Prisma.TransactionClient
 ): Promise<NotificationPreference | null> {
     const db = tx ?? prisma;
-    
-    return db.notificationPreference.findUnique({
-        where: {
+
+    return db.notificationPreference.create({
+        data: {
             userId,
+            inApp: true,
+            email: true,
+            push: true,
         },
     });
  }

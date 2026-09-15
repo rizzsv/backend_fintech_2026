@@ -42,7 +42,11 @@ export class AuthService {
 
         const role = dto.role ?? UserRole.USER;
 
-        return prisma.$transaction(async (tx) => {
+        const verificationToken = generateVerificationToken();
+        const verificationHash = hashToken(verificationToken);
+        const verificationUrl = `${process.env.APP_URL}/api/v1/auth/verify-email?token=${verificationToken}`;
+
+        const registration = await prisma.$transaction(async (tx) => {
             const user =
                 await authRepository.createUser(tx, {
                     email: dto.email,
@@ -63,12 +67,6 @@ export class AuthService {
                 user.id
             );
 
-            const verificationToken =
-                generateVerificationToken();
-
-            const verificationHash =
-                hashToken(verificationToken);
-
             await authRepository.updateVerificationTokenRegister(
                 tx,
                 user.id,
@@ -78,18 +76,18 @@ export class AuthService {
                 )
             );
 
-            const verificationUrl = `${process.env.APP_URL}/api/auth/verify-email?token=${verificationToken}`;
-
-            // await notificationService.sendVerificationEmail(
-            //     user.email,
-            //     verificationUrl
-            // );
-
             return {
                 id: user.id,
                 email: user.email,
             }
         });
+
+        await notificationService.sendVerificationEmail(
+            registration.email,
+            verificationUrl
+        );
+
+        return registration;
     }
 
     async resendVerificationEmail(
@@ -130,10 +128,10 @@ export class AuthService {
         const verificationUrl =
             `${process.env.APP_URL}/api/auth/verify-email?token=${verificationToken}`;
 
-        // await notificationService.sendVerificationEmail(
-        //     user.email,
-        //     verificationUrl
-        // );
+        await notificationService.sendVerificationEmail(
+            user.email,
+            verificationUrl
+        );
 
         return {
             message:
@@ -255,7 +253,31 @@ export class AuthService {
             throw new NotFoundError('User not found')
         };
 
-        return user;
+        const {
+            passwordHash,
+            emailVerificationToken,
+            emailVerificationExpiresAt,
+            kycDocumentPath,
+            kycSelfiePath,
+            deletedAt,
+            kycStatus,
+            kycTier,
+            isActive,
+            isEmailVerified,
+            ...safeUser
+        } = user;
+
+        return {
+            ...safeUser,
+            account: {
+                isActive,
+                isEmailVerified,
+            },
+            kyc: {
+                status: user.kycStatus,
+                tier: user.kycTier,
+            },
+        };
     }
 }
 

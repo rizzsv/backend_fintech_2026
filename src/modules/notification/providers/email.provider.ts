@@ -9,6 +9,8 @@ import {
 import {
     BusinessLogger,
 } from "../../../shared/logger/business-logger";
+import { emailService } from "../service/email.service";
+import { prisma } from "../../../shared/config/database";
 
 
 export class EmailNotificationProvider
@@ -27,18 +29,20 @@ export class EmailNotificationProvider
             }
         );
 
-        /*
-         * TODO Sprint 7.x:
-         *
-         * Integrate SMTP / email provider.
-         *
-         * Example:
-         * - Nodemailer
-         * - Resend
-         * - SendGrid
-         */
+        const user = await prisma.user.findUnique({
+            where: { id: notification.userId },
+            select: { email: true },
+        });
 
-        return;
+        if (!user) {
+            throw new Error(`User ${notification.userId} not found`);
+        }
+
+        await emailService.send(
+            user.email,
+            notification.title,
+            notification.message
+        );
     }
 }
 

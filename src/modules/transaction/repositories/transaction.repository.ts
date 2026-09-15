@@ -21,14 +21,14 @@ export class TransactionRepository {
         })
     }
     async findWalletByUserId(
-        walletId: string,
+        userId: string,
         tx?: Prisma.TransactionClient
     ) {
         const db = tx ?? prisma;
 
-        return db.wallet.findUnique({
+        return db.wallet.findFirst({
             where: {
-                id: walletId,
+                userId,
             },
             include: {
                 user: true
@@ -59,6 +59,18 @@ export class TransactionRepository {
         const [items, total] = await prisma.$transaction([
             prisma.transaction.findMany({
                 where,
+
+                include: {
+                    toWallet: {
+                        select: {
+                            user: {
+                                select: {
+                                    email: true,
+                                },
+                            },
+                        },
+                    },
+                },
 
                 orderBy: {
                     createdAt: "desc",

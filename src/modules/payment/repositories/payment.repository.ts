@@ -1,4 +1,9 @@
-import { Prisma, PaymentStatus } from "@prisma/client";
+import {
+    Prisma,
+    PaymentStatus,
+    TransactionStatus,
+    TransactionType,
+} from "@prisma/client";
 
 import { prisma } from "../../../shared/config/database";
 import { withSpan } from "../../../shared/telemetry/span";
@@ -87,6 +92,31 @@ class PaymentRepository {
             }
 
         });
+    }
+
+    async getMonthlyTopUpTotal(
+        walletId: string,
+        startDate: Date,
+        endDate: Date,
+    ){
+        const result = await prisma.transaction.aggregate({
+            _sum: {
+                amount: true,
+            },
+            where: {
+                toWalletId: walletId,
+                transactionType: TransactionType.TOPUP,
+                status: TransactionStatus.SUCCESS,
+                createdAt: {
+                    gte: startDate,
+                    lte: endDate,
+                },
+            },
+        });
+
+        return {
+            total: result._sum.amount?.toNumber() ?? 0,
+        };
     }
 
     async updateStatus(

@@ -5,13 +5,15 @@ export class TransactionMapper {
 
             id: item.id,
 
-            referenceNumber: item.referenceNumber,
+            fromWalletId: item.fromWalletId,
+
+            toWalletId: item.toWalletId,
+
+            toEmail: item.toWallet?.user?.email ?? null,
 
             amount: item.amount,
 
-            fee: item.fee,
-
-            type: item.transactionType,
+            transactionType: item.transactionType,
 
             status: item.status,
 

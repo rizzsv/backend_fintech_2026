@@ -155,13 +155,9 @@ export class AuthRepository {
     async findById(id: string) {
         return prisma.user.findUnique({
             where: {id},
-
-            include : {
-                wallet: true,
-                userLimit: true
-            }
         })
     }
+    
 
 async updateVerificationTokenRegister(
   tx: Prisma.TransactionClient,

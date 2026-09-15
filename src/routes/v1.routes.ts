@@ -12,8 +12,10 @@ const router = Router();
 router.use("/auth", authRoutes);
 router.use("/wallet", walletRoutes);
 router.use("/transaction", transactionRoutes);
+router.use("/transactions", transactionRoutes);
 router.use("/payment", paymentRoutes);
 router.use("/notifications", notificationRoutes);
+
 
 // post
 router.post("/withdrawal/webhook", withdrawalWebhookController.handle);

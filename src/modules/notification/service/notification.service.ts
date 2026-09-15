@@ -70,6 +70,23 @@ export class NotificationService {
         );
     }
 
+    async sendOTP(input: {
+        email: string;
+        otp: string;
+        method: "email" | "sms";
+    }) {
+        const title =
+            input.method === "sms"
+                ? "Your SMS verification code"
+                : "Your email verification code";
+
+        return emailService.send(
+            input.email,
+            title,
+            `Your verification code is ${input.otp}. It expires in 10 minutes.`
+        );
+    }
+
     async createNotification(
         input: CreateNotificationInput,
         tx?: Prisma.TransactionClient
@@ -85,7 +102,7 @@ export class NotificationService {
                     input.channel
                 );
 
-            let status = NotificationStatus.SKIPPED;
+            let status = input.status ?? NotificationStatus.PENDING;
 
             if (!enabled) {
 
@@ -109,7 +126,7 @@ export class NotificationService {
                     input.type
                 );
 
-                if (allowed) {
+                if (!allowed) {
 
                     notificationSkippedCounter.inc({
                         type: input.type,
@@ -155,13 +172,15 @@ export class NotificationService {
                             entityId: input.entityId,
                         }
                     )
+
+                    status = NotificationStatus.SKIPPED;
                 }
             }
 
             const notification = await notificationRepository.create(
                 {
                     ...input,
-                    status: NotificationStatus.SKIPPED,
+                    status,
                 },
                 tx
             );

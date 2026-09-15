@@ -48,6 +48,28 @@ class PaymentController {
         }
     }
 
+    async getMonthlyTopUpReport(
+        req: Request,
+        res: Response,
+        next: NextFunction
+    ) {
+        try{
+            const result =
+                await paymentService.getMonthlyTopUpReport(
+                    req.params.walletId as string,
+                    parseInt(req.params.year as string),
+                    parseInt(req.params.month as string)
+                );
+
+            return res.json({
+                success: true,
+                data: result,
+            });
+        }catch(error){
+            next(error);
+        }
+    }
+
     async cancelPayment(
         req: Request,
         res: Response,

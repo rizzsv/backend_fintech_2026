@@ -22,6 +22,12 @@ router.get(
     paymentController.getStatus
 );
 
+router.get(
+    "/:walletId/report/:year/:month",
+    authMiddleware,
+    paymentController.getMonthlyTopUpReport
+)
+
 router.post(
     "/:reference/cancel",
     authMiddleware,

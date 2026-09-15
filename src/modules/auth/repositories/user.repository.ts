@@ -29,6 +29,24 @@ export class UserRepository {
             data: { role },
         });
     }
+
+    async enable2FA(
+        userId: string,
+        method: "email" | 'sms',
+        tx?: Prisma.TransactionClient
+    ){
+        const db = tx ?? prisma;
+
+        return db.user.update({
+            where: {
+                id: userId,
+            },
+            data: {
+                has2FA: true,
+                twoFactorMethod: method,
+            },
+        });
+    }
 }
 
 export const userRepository = new UserRepository();

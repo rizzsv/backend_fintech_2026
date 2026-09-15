@@ -1,3 +1,4 @@
+import "./shared/config/env";
 import app from "./app";
 import { logger } from "./shared/logger/logger";
 import { sdk }from "./shared/telemetry/tracing";

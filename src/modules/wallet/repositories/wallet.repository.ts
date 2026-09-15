@@ -151,7 +151,7 @@ export class WalletRepository {
         tx: Prisma.TransactionClient,
         walletId: string,
         version: number,
-        amount: Prisma.Decimal
+        balanceDelta: Prisma.Decimal
     ) {
         return tx.wallet.updateMany({
             where: {
@@ -160,7 +160,7 @@ export class WalletRepository {
             },
             data: {
                 balance: {
-                    increment: amount
+                    increment: balanceDelta
                 },
                 version: {
                     increment: 1

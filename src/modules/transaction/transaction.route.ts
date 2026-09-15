@@ -1,5 +1,8 @@
 import { Router } from "express";
-import { transactionQuerySchema } from "./validators/transaction.validator";
+import {
+    transactionQuerySchema,
+    transferSchema,
+} from "./validators/transaction.validator";
 import { authMiddleware } from "../../shared/middleware/auth.middleware";
 import { validateRequest } from "../../shared/middleware/requestValidator.middleware";
 import { transactionController } from "./controllers/transaction.controller";
@@ -27,7 +30,7 @@ router.get(
 
 router.post(
     "/transfer",
-    authMiddleware,
+    validateRequest(transferSchema.omit({ idempotencyKey: true }), "body"),
     transactionController.transfer
 );
 
