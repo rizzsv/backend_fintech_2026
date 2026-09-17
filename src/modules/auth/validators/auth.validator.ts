@@ -29,4 +29,8 @@ export const resendVerificationSchema = z.object({
     .email("Invalid email"),
 });
 
+export const verifyEmailSchema = z.object({
+  token: z.string().min(1, "Token is required"),
+}).strict()
+
 export const logoutAllDeviceSchema = z.object({})

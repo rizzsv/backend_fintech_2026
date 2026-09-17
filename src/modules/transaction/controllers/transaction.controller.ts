@@ -5,6 +5,7 @@ import { transactionService } from "../services/transaction.service";
 import { ResponseUtils } from "../../../shared/utils/response.utils";
 
 import { AppError } from "../../../shared/errors/AppError";
+import { TransactionQueryDTO } from "../types/transaction.types";
 
 interface TransactionParams {
     id: string;
@@ -18,25 +19,22 @@ export class TransactionController {
         next: NextFunction
     ) {
 
-        try {
+  try {
+    const query = (req as any).validatedQuery;
 
-            const result =
-                await transactionService.getTransactions(
-                    req.user!.id,
-                    req.query as any
-                );
+    const result = await transactionService.getTransactions(
+      req.user!.id,
+      query
+    );
 
-            return ResponseUtils.success(
-                res,
-                result,
-                "Transactions fetched successfully"
-            );
-
-        } catch (error) {
-
-            next(error);
-
-        }
+    return ResponseUtils.success(
+      res,
+      result,
+      "Transactions fetched successfully"
+    );
+  } catch (error) {
+    next(error);
+  }
 
     }
 

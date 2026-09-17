@@ -14,6 +14,42 @@ export class AuthRepository {
         })
     }
 
+    async createRegistration(data: {
+        email: string;
+        phoneNumber: string;
+        passwordHash: string;
+        firstName?: string;
+        lastName?: string;
+        role: UserRole;
+        verificationTokenHash: string;
+        verificationExpiresAt: Date;
+    }) {
+        const {
+            verificationTokenHash,
+            verificationExpiresAt,
+            ...userData
+        } = data;
+
+        return prisma.$transaction(async (tx) => {
+            const user = await this.createUser(tx, userData);
+
+            await this.createWallet(tx, user.id);
+            await this.createUserLimit(tx, user.id);
+            await this.updateVerificationTokenRegister(
+                tx,
+                user.id,
+                verificationTokenHash,
+                verificationExpiresAt
+            );
+
+            return {
+                id: user.id,
+                email: user.email,
+            };
+        });
+    }
+
+
     async createUser(
         tx: Prisma.TransactionClient,
         data: {
@@ -57,7 +93,6 @@ export class AuthRepository {
     }
 
     async createSession(
-        tx: Prisma.TransactionClient,
         data: {
             userId: string;
             refreshTokenHash: string;
@@ -65,9 +100,12 @@ export class AuthRepository {
             deviceName?: string;
             deviceIp?: string;
             userAgent?: string;
-        }
+        },
+        tx?: Prisma.TransactionClient,
     ) {
-        return tx.session.create({
+        const client = tx ?? prisma;
+
+        return client.session.create({
             data,
         });
     }

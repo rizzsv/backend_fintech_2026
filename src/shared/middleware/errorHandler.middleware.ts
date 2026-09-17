@@ -14,7 +14,7 @@ export function errorHandler(
         {
             requestId: req.requestId,
             method: req.method,
-            url: req.originalUrl,
+            path: req.path,
             message: err.message,
             stack: err.stack,
             code: err.code,

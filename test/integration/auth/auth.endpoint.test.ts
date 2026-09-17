@@ -17,6 +17,7 @@ vi.mock(
             logout: vi.fn(),
             me: vi.fn(),
             logoutAllDevice: vi.fn(),
+            verifyEmail: vi.fn(),
             resendVerificationEmail: vi.fn(),
         },
     })
@@ -58,9 +59,30 @@ const response = await request(app)
 
     });
 
-});
+    it("GET /verify-email should use the query token", async () => {
+        vi.mocked(authService.verifyEmail).mockResolvedValue({
+            userId: "user-1",
+            email: "test@gmail.com",
+            isEmailVerified: true,
+        });
 
-validateRequest(registerSchema)
+        const response = await request(app)
+            .get("/api/v1/auth/verify-email?token=valid-token");
+
+        expect(response.status).toBe(200);
+        expect(authService.verifyEmail).toHaveBeenCalledWith("valid-token");
+    });
+
+    it("GET /verify-email should reject a missing token", async () => {
+        const response = await request(app)
+            .get("/api/v1/auth/verify-email");
+
+        expect(response.status).toBe(400);
+        expect(response.body.code).toBe("VALIDATION_ERROR");
+        expect(authService.verifyEmail).not.toHaveBeenCalled();
+    });
+
+
 
 it("should reject invalid email", async () => {
 
@@ -74,4 +96,5 @@ it("should reject invalid email", async () => {
 
     expect(response.status).toBe(400);
 
+});
 });

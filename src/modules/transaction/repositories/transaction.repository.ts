@@ -37,59 +37,145 @@ export class TransactionRepository {
     }
 
     async findMany(
-        walletId: string,
-        page: number,
-        limit: number,
-        status?: TransactionStatus,
-        type?: TransactionType
-    ) {
-        const where: Prisma.TransactionWhereInput = {
-            OR: [
-                {
-                    fromWalletId: walletId,
-                },
-                {
-                    toWalletId: walletId,
-                },
-            ],
-            ...(status && { status }),
-            ...(type && { transactionType: type }),
-        };
+    walletId: string,
+    page: number,
+    limit: number,
+    search?: string,
+    status?: TransactionStatus,
+    type?: TransactionType
+) {
+    const where: Prisma.TransactionWhereInput = {
+        AND: [
+            // Transaction belongs to this wallet
+            {
+                OR: [
+                    {
+                        fromWalletId: walletId,
+                    },
+                    {
+                        toWalletId: walletId,
+                    },
+                ],
+            },
 
-        const [items, total] = await prisma.$transaction([
-            prisma.transaction.findMany({
-                where,
+            // Filter by status
+            ...(status
+                ? [
+                    {
+                        status,
+                    },
+                ]
+                : []),
 
-                include: {
-                    toWallet: {
-                        select: {
-                            user: {
-                                select: {
-                                    email: true,
+            // Filter by transaction type
+            ...(type
+                ? [
+                    {
+                        transactionType: type,
+                    },
+                ]
+                : []),
+
+            // Search
+            ...(search
+                ? [
+                    {
+                        OR: [
+                            {
+                                description: {
+                                    contains: search,
+                                    mode: "insensitive" as Prisma.QueryMode,
                                 },
+                            },
+                            {
+                                referenceNumber: {
+                                    contains: search,
+                                    mode: "insensitive" as Prisma.QueryMode,
+                                },
+                            },
+                            {
+                                fromWallet: {
+                                    user: {
+                                        firstName: {
+                                            contains: search,
+                                            mode: "insensitive" as Prisma.QueryMode,
+                                        },
+                                    },
+                                },
+                            },
+                            {
+                                fromWallet: {
+                                    user: {
+                                        lastName: {
+                                            contains: search,
+                                            mode: "insensitive" as Prisma.QueryMode,
+                                        },
+                                    },
+                                },
+                            },
+                            {
+                                toWallet: {
+                                    user: {
+                                        firstName: {
+                                            contains: search,
+                                            mode: "insensitive" as Prisma.QueryMode,
+                                        },
+                                    },
+                                },
+                            },
+                            {
+                                toWallet: {
+                                    user: {
+                                        lastName: {
+                                            contains: search,
+                                            mode: "insensitive" as Prisma.QueryMode,
+                                        },
+                                    },
+                                },
+                            },
+                        ],
+                    },
+                ]
+                : []),
+        ],
+    };
+
+    const [items, total] = await prisma.$transaction([
+        prisma.transaction.findMany({
+            where,
+
+            include: {
+                toWallet: {
+                    select: {
+                        user: {
+                            select: {
+                                email: true,
+                                firstName: true,
+                                lastName: true,
                             },
                         },
                     },
                 },
+            },
 
-                orderBy: {
-                    createdAt: "desc",
-                },
+            orderBy: {
+                createdAt: "desc",
+            },
 
-                skip: (page - 1) * limit,
+            skip: (page - 1) * limit,
+            take: limit,
+        }),
 
-                take: limit,
-            }),
+        prisma.transaction.count({
+            where,
+        }),
+    ]);
 
-            prisma.transaction.count({
-                where,
-            }),
-        ]);
-        return {
-            items,
-            total,
-        }
-    }
+    return {
+        items,
+        total,
+    };
+}
 
     async findTransactionById(id: string) {
         return prisma.transaction.findUnique({

@@ -352,6 +352,26 @@ export class WalletRepository {
 
     }
 
+    async incrementLimitUsage(
+        tx: Prisma.TransactionClient,
+        userId: string,
+        amount: Prisma.Decimal
+    ) {
+        return tx.userLimit.update({
+            where: {
+                userId,
+            },
+            data: {
+                dailyUsed: {
+                    increment: amount,
+                },
+                monthlyUsed: {
+                    increment: amount,
+                },
+            },
+        });
+    }
+
 }
 
 export const walletRepository = new WalletRepository();

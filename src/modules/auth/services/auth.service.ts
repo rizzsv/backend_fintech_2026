@@ -10,6 +10,7 @@ import { hashToken } from '../../../shared/helper/refreshtoken.helper'
 import { NotFoundError } from '../../../shared/errors/NotFoundError'
 import { generateVerificationToken } from '../../../shared/helper/emailVerification.helper'
 import { notificationService } from '../../notification/service/notification.service'
+import { userRepository } from '../repositories/user.repository'
 
 export class AuthService {
     async register(dto: RegisterDTO) {
@@ -44,42 +45,17 @@ export class AuthService {
 
         const verificationToken = generateVerificationToken();
         const verificationHash = hashToken(verificationToken);
-        const verificationUrl = `${process.env.APP_URL}/api/v1/auth/verify-email?token=${verificationToken}`;
+        const verificationUrl = this.buildVerificationUrl(verificationToken);
 
-        const registration = await prisma.$transaction(async (tx) => {
-            const user =
-                await authRepository.createUser(tx, {
-                    email: dto.email,
-                    phoneNumber: dto.phoneNumber,
-                    passwordHash,
-                    firstName: dto.firstName,
-                    lastName: dto.lastName,
-                    role,
-                });
-
-            await authRepository.createWallet(
-                tx,
-                user.id
-            );
-
-            await authRepository.createUserLimit(
-                tx,
-                user.id
-            );
-
-            await authRepository.updateVerificationTokenRegister(
-                tx,
-                user.id,
-                verificationHash,
-                new Date(
-                    Date.now() + 24 * 60 * 60 * 1000
-                )
-            );
-
-            return {
-                id: user.id,
-                email: user.email,
-            }
+        const registration = await authRepository.createRegistration({
+            email: dto.email,
+            phoneNumber: dto.phoneNumber,
+            passwordHash,
+            firstName: dto.firstName,
+            lastName: dto.lastName,
+            role,
+            verificationTokenHash: verificationHash,
+            verificationExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
         });
 
         await notificationService.sendVerificationEmail(
@@ -125,8 +101,7 @@ export class AuthService {
             expiresAt
         );
 
-        const verificationUrl =
-            `${process.env.APP_URL}/api/auth/verify-email?token=${verificationToken}`;
+        const verificationUrl = this.buildVerificationUrl(verificationToken);
 
         await notificationService.sendVerificationEmail(
             user.email,
@@ -163,16 +138,22 @@ export class AuthService {
             );
         }
 
+        if (!user.isEmailVerified) {
+            throw new AppError(
+                "Email verification is required before login",
+                403,
+                "EMAIL_NOT_VERIFIED"
+            );
+        }
+
         const refreshToken = generateRefreshToken();
 
         const refreshTokenHash = hashToken(refreshToken);
 
-        const session = await prisma.session.create({
-            data: {
-                userId: user.id,
-                refreshTokenHash,
-                expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 30),
-            }
+        const session = await authRepository.createSession({
+            userId: user.id,
+            refreshTokenHash,
+            expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 30),
         });
 
         const accessToken = generateAccessToken(user.id, session.id);
@@ -278,6 +259,68 @@ export class AuthService {
                 tier: user.kycTier,
             },
         };
+    }
+
+    async verifyEmail(token: string) {
+        const tokenHash = hashToken(token);
+        const user = await userRepository.findByEmailVerificationToken(tokenHash);
+
+        if (!user) {
+            throw new AppError(
+                "Invalid or expired verification token",
+                400,
+                "INVALID_VERIFICATION_TOKEN"
+            );
+        }
+
+        if (user.isEmailVerified) {
+            throw new AppError(
+                "Email already verified",
+                400,
+                "EMAIL_ALREADY_VERIFIED"
+            );
+        }
+
+        const now = new Date();
+        if (!user.emailVerificationExpiresAt || user.emailVerificationExpiresAt <= now) {
+            throw new AppError(
+                "Verification token has expired",
+                400,
+                "VERIFICATION_TOKEN_EXPIRED"
+            );
+        }
+
+        const consumed = await userRepository.consumeEmailVerificationToken(tokenHash, now);
+        if (consumed.count !== 1) {
+            throw new AppError(
+                "Invalid or expired verification token",
+                400,
+                "INVALID_VERIFICATION_TOKEN"
+            );
+        }
+
+        return {
+            userId: user.id,
+            email: user.email,
+            isEmailVerified: true,
+        };
+    }
+
+    private buildVerificationUrl(token: string) {
+        const appUrl = process.env.APP_URL;
+
+        if (!appUrl) {
+            throw new AppError(
+                "Email verification is not configured",
+                500,
+                "EMAIL_VERIFICATION_NOT_CONFIGURED"
+            );
+        }
+
+        const verificationUrl = new URL("/api/v1/auth/verify-email", appUrl);
+        verificationUrl.searchParams.set("token", token);
+
+        return verificationUrl.toString();
     }
 }
 

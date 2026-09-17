@@ -61,7 +61,7 @@ app.use(
 
             ignore(req) {
 
-                return req.url === "/metrics";
+                return req.url === "/metrics" || req.path === "/api/v1/auth/verify-email";
 
             },
 

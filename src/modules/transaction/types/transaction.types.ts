@@ -8,7 +8,7 @@ import {
 export interface TransactionQueryDTO {
     page?: number;
     limit?: number;
-
+    search?: string;
     status?: TransactionStatus;
     type?: TransactionType;
 }

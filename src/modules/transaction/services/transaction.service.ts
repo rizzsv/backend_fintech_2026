@@ -354,6 +354,12 @@ export class TransactionService {
                                 tx
                             );
 
+                            await walletRepository.incrementLimitUsage(
+                                tx,
+                                wallets.fromWallet.userId,
+                                amount
+                            );
+
                             span.setStatus({
                                 code: 1, // OK
                             });
@@ -570,11 +576,13 @@ export class TransactionService {
 
         const page = query.page ?? 1;
         const limit = query.limit ?? 20;
+        const search = query.search ?? undefined;
 
         const result = await new TransactionRepository().findMany(
             wallet.id,
             page,
             limit,
+            query.search,
             query.status,
             query.type
         )

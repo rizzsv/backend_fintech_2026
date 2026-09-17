@@ -99,6 +99,27 @@ export class AuthController {
     }
   }
 
+  async verifyEmail(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ) {
+    try {
+      const token = req.method === "GET"
+        ? (req as Request & { validatedQuery: { token: string } }).validatedQuery.token
+        : req.body.token;
+      const result = await authService.verifyEmail(token);
+
+      return ResponseUtils.success(
+        res,
+        result,
+        "Email verified successfully"
+      )
+    }catch (error) {
+      next(error);
+    }
+  }
+
   async logoutAll(
     req: Request,
     res: Response,

@@ -64,6 +64,29 @@ export class UserRepository {
             },
         });
     }
+
+    async findByEmailVerificationToken(tokenHash: string) {
+        return prisma.user.findFirst({
+            where: {
+                emailVerificationToken: tokenHash,
+            },
+        });
+    }
+
+    async consumeEmailVerificationToken(tokenHash: string, now: Date) {
+        return prisma.user.updateMany({
+            where: {
+                emailVerificationToken: tokenHash,
+                emailVerificationExpiresAt: { gt: now },
+                isEmailVerified: false,
+            },
+            data: {
+                isEmailVerified: true,
+                emailVerificationToken: null,
+                emailVerificationExpiresAt: null,
+            },
+        });
+    }
 }
 
 export const userRepository = new UserRepository();

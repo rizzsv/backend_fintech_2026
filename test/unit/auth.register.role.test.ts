@@ -3,16 +3,13 @@ import { UserRole } from '@prisma/client';
 
 import { AuthService } from '../../src/modules/auth/services/auth.service';
 import { authRepository } from '../../src/modules/auth/repositories/auth.repository';
-import { prisma } from '../../src/shared/config/database';
 
 vi.mock('../../src/modules/auth/repositories/auth.repository', () => ({
   authRepository: {
     findByEmail: vi.fn(),
     findByPhoneNumber: vi.fn(),
-    createUser: vi.fn(),
-    createWallet: vi.fn(),
-    createUserLimit: vi.fn(),
-    updateVerificationTokenRegister: vi.fn(),
+    createRegistration: vi.fn(),
+    createSession: vi.fn(),
   },
 }));
 
@@ -35,6 +32,9 @@ vi.mock('../../src/shared/helper/refreshtoken.helper', () => ({
   hashToken: vi.fn((token: string) => token),
 }));
 
+vi.mock('../../src/modules/notification/service/notification.service', () => ({
+  notificationService: { sendVerificationEmail: vi.fn() },
+}));
 describe('AuthService.register', () => {
   const service = new AuthService();
 
@@ -43,19 +43,13 @@ describe('AuthService.register', () => {
   });
 
   it('adds ADMIN role when the caller registers as an admin', async () => {
-    const tx = { user: {} };
-
-    vi.mocked(prisma.$transaction).mockImplementation(async (callback: any) => callback(tx));
+    process.env.APP_URL = 'https://api.example.com';
     vi.mocked(authRepository.findByEmail).mockResolvedValue(null);
     vi.mocked(authRepository.findByPhoneNumber).mockResolvedValue(null);
-    vi.mocked(authRepository.createUser).mockResolvedValue({
+    vi.mocked(authRepository.createRegistration).mockResolvedValue({
       id: 'admin-1',
       email: 'admin@example.com',
-      phoneNumber: '081234567890',
-      firstName: 'Admin',
-      lastName: 'User',
-      role: UserRole.ADMIN,
-    } as any);
+    });
 
     await service.register({
       email: 'admin@example.com',
@@ -66,10 +60,10 @@ describe('AuthService.register', () => {
       role: UserRole.ADMIN,
     } as any);
 
-    expect(authRepository.createUser).toHaveBeenCalledWith(
-      tx,
+    expect(authRepository.createRegistration).toHaveBeenCalledWith(
       expect.objectContaining({
         role: UserRole.ADMIN,
+        verificationTokenHash: 'verification-token',
       })
     );
   });

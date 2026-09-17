@@ -3,7 +3,7 @@ import { loginRateLimiter, refreshRateLimiter } from "../../shared/middleware/ra
 import { validateRequest } from "../../shared/middleware/requestValidator.middleware";
 import { authController } from "./controllers/auth.controller";
 import { otpController } from "./controllers/otp.controller";
-import { loginSchema, logoutSchema, refreshTokenSchema, registerSchema, resendVerificationSchema } from "./validators/auth.validator";
+import { loginSchema, logoutSchema, refreshTokenSchema, registerSchema, resendVerificationSchema, verifyEmailSchema } from "./validators/auth.validator";
 import { authMiddleware } from "../../shared/middleware/auth.middleware";
 
 
@@ -27,6 +27,13 @@ router.post(
   refreshRateLimiter,
   validateRequest(refreshTokenSchema),
   authController.refresh.bind(authController)
+);
+
+
+router.post(
+  "/verify-email",
+  validateRequest(verifyEmailSchema, "body"),
+  authController.verifyEmail.bind(authController)
 );
 
 router.post(
