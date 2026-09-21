@@ -307,9 +307,9 @@ export class AuthService {
     }
 
     private buildVerificationUrl(token: string) {
-        const appUrl = process.env.APP_URL;
+        const webAppUrl = process.env.FRONTEND_URL ?? process.env.APP_URL;
 
-        if (!appUrl) {
+        if (!webAppUrl) {
             throw new AppError(
                 "Email verification is not configured",
                 500,
@@ -317,7 +317,7 @@ export class AuthService {
             );
         }
 
-        const verificationUrl = new URL("/api/v1/auth/verify-email", appUrl);
+        const verificationUrl = new URL("/verify-email", webAppUrl);
         verificationUrl.searchParams.set("token", token);
 
         return verificationUrl.toString();
