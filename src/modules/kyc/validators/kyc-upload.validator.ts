@@ -1,5 +1,6 @@
 import path from "node:path";
 import { KYC_UPLOAD_CONFIG } from "../types/kyc-upload.types";
+import { AppError } from "../../../shared/errors/AppError";
 import {
     detectFileType,
     SupportedFileType,
@@ -37,12 +38,25 @@ export function isFileSignatureCompatible(
     return false;
 }
 
+/**
+ * Every rejection below is a caller mistake, so it has to reach the client as a
+ * 400. A plain Error is not an AppError and the error handler turns it into an
+ * opaque 500, which hides the reason the upload was refused.
+ */
+function invalidUpload(message: string): AppError {
+    return new AppError(
+        message,
+        400,
+        "VALIDATION_ERROR"
+    );
+}
+
 export class KycUploadValidator {
     validateDocument(
         file?: Express.Multer.File
     ): void {
         if (!file) {
-            throw new Error(
+            throw invalidUpload(
                 "KYC document is required"
             )
         }
@@ -57,7 +71,7 @@ export class KycUploadValidator {
         file?: Express.Multer.File
     ): void {
         if (!file) {
-            throw new Error(
+            throw invalidUpload(
                 "selfie is required"
             )
         }
@@ -79,7 +93,7 @@ export class KycUploadValidator {
         if (
             file.size > config.maxSize
         ) {
-            throw new Error(
+            throw invalidUpload(
                 "File exceeds maximum allowed size"
             )
         }
@@ -89,7 +103,7 @@ export class KycUploadValidator {
                 file.mimetype
             )
         ) {
-            throw new Error(
+            throw invalidUpload(
                 "Unsupported file type"
             )
         }
@@ -103,7 +117,7 @@ export class KycUploadValidator {
                 extension
             )
         ) {
-            throw new Error(
+            throw invalidUpload(
                 "Unsupported file extension"
             )
         }
@@ -115,7 +129,7 @@ export class KycUploadValidator {
         if (
             filename !== file.originalname
         ) {
-            throw new Error(
+            throw invalidUpload(
                 "Invalid file name"
             )
         }
@@ -125,7 +139,7 @@ export class KycUploadValidator {
         );
 
         if (!detectedType) {
-            throw new Error(
+            throw invalidUpload(
                 "Unable to verify file type"
             )
         }
@@ -138,13 +152,9 @@ export class KycUploadValidator {
             );
 
         if (!compatible) {
-            throw new Error(
+            throw invalidUpload(
                 "File content does not match its declared type"
             );
         }
     }
 }
-
-export const KyxUploadValidator = KycUploadValidator;
-
-export const kycUploadValidator = new KycUploadValidator();

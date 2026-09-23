@@ -70,15 +70,6 @@ export const paymentWorker =
                     break;
 
 
-                case PaymentJobs.CANCEL:
-
-                    await paymentService
-                        .cancelPayment(
-                            job.data.referenceNumber
-                        );
-
-                    break;
-
                 case PaymentJobs.WEBHOOK_RETRY:
 
                     await paymentReconciliationService

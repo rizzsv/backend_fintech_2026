@@ -20,6 +20,7 @@ import {
 import { KycStorage } from "../storage/kyc.storage";
 import { PrismaKycRepository } from "../repositories/prisma-kyc.repository";
 import { kycStorage } from "../storage/local-kyc.storage";
+import { AppError } from "../../../shared/errors/AppError";
 
 
 export class KycService {
@@ -41,16 +42,14 @@ export class KycService {
         const {
             userId,
             document,
-            documents,
             selfie,
         } = input;
 
-        const documentFile =
-            document ?? documents;
-
-        if (!documentFile) {
-            throw new Error(
-                "KYC document is required"
+        if (!document) {
+            throw new AppError(
+                "KYC document is required",
+                400,
+                "VALIDATION_ERROR"
             );
         }
 
@@ -59,7 +58,7 @@ export class KycService {
          */
         this.kycUploadValidator
             .validateDocument(
-                documentFile
+                document
             );
 
 
@@ -85,8 +84,10 @@ export class KycService {
                 existing.status ===
                 KycStatus.PENDING
             ) {
-                throw new Error(
-                    "KYC request is already pending"
+                throw new AppError(
+                    "KYC request is already pending",
+                    409,
+                    "KYC_ALREADY_PENDING"
                 );
             }
 
@@ -94,8 +95,10 @@ export class KycService {
                 existing.status ===
                 KycStatus.VERIFIED
             ) {
-                throw new Error(
-                    "KYC has already been verified"
+                throw new AppError(
+                    "KYC has already been verified",
+                    409,
+                    "KYC_ALREADY_VERIFIED"
                 );
             }
         }
@@ -114,7 +117,7 @@ export class KycService {
             documentPath =
                 await this.kycStorage
                     .uploadDocument(
-                        documentFile,
+                        document,
                         userId
                     );
 

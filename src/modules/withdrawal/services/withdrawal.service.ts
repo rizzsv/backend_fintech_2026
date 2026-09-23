@@ -1,11 +1,11 @@
-import { EntryType, LedgerEntryType, Prisma, TransactionStatus, TransactionType, withdrawalStatus } from "@prisma/client";
+import { EntryType, LedgerEntryType, Prisma, TransactionStatus, TransactionType, WithdrawalMethod, withdrawalStatus } from "@prisma/client";
 import { prisma } from "../../../shared/config/database";
 import { retry } from "../../../shared/database/retry";
 import { BusinessLogger } from "../../../shared/logger/business-logger";
 import { generateReferenceNumber } from "../../../shared/utils/reference.utils";
 import { walletRepository } from "../../wallet/repositories/wallet.repository";
 import { withdrawalRepository } from "../repositories/withdrawal.repository";
-import { CreateWithdrawalDTO, WithdrawalResponse } from "../types/withdrawal.types";
+import { CreateWithdrawalDTO, WithdrawalConfig, WithdrawalResponse } from "../types/withdrawal.types";
 import { WITHDRAWAL_CONSTANTS } from "../constants/withdrawal.constants";
 import { auditService } from "../../audit/services/audit.services";
 import { withdrawalBusinessValidator } from "../validators/withdrawal.business.validator";
@@ -14,6 +14,22 @@ import { formatWithdrawalResponse } from "../utils/withdrawal.mapper";
 import { withdrawalRiskService } from "../security/withdrawal-risk.service";
 
 export const withdrawalService = {
+   /**
+    * The fee and the amount bounds live in the backend so the client never has
+    * to hardcode them. `validateAmount` and the fee applied in
+    * `createWithdrawal` read from the same constants, so what a client shows
+    * here is exactly what gets enforced.
+    */
+   getConfig(): WithdrawalConfig {
+       return {
+           fee: WITHDRAWAL_CONSTANTS.FEE,
+           minAmount: WITHDRAWAL_CONSTANTS.MIN_AMOUNT,
+           maxAmount: WITHDRAWAL_CONSTANTS.MAX_AMOUNT,
+           dailyLimit: WITHDRAWAL_CONSTANTS.DAILY_LIMIT,
+           methods: Object.values(WithdrawalMethod),
+       };
+   },
+
    async createWithdrawal(
     userId: string,
     dto: CreateWithdrawalDTO
@@ -384,45 +400,6 @@ export const withdrawalService = {
 
 },
 
-    async getWithdrawal(
-        id: string
-    ) {
-        const withdrawal = await prisma.$transaction(async (tx) => {
-            return withdrawalRepository.findById(id, tx);
-        })
-
-        if (!withdrawal) {
-            throw new Error("Withdrawal not found");
-        }
-
-        return withdrawal;
-    },
-
-    async getStatus(
-        referenceNumber: string
-    ) {
-        const withdrawal = await prisma.$transaction(async (tx) => {
-            return withdrawalRepository.findByReference(referenceNumber, tx);
-        })
-
-        if (!withdrawal) {
-            throw new Error("Withdrawal not found");
-        }
-
-        return {
-            withdrawalId: withdrawal.id,
-            referenceNumber: withdrawal.referenceNumber,
-            status: withdrawal.status,
-            amount: withdrawal.amount.toNumber(),
-            fee: withdrawal.fee.toNumber(),
-            netAmount: withdrawal.netAmount.toNumber(),
-            provider: withdrawal.providerResponse,
-            processedAt: withdrawal.processedAt,
-            failedReason: withdrawal.failedReason,
-            createdAt: withdrawal.createdAt,
-        }
-    },
-
     async cancelWithdrawal(
         id: string
     ) {
@@ -443,11 +420,19 @@ export const withdrawalService = {
                     throw new Error("Wallet not found for withdrawal");
                 }
 
+                /**
+                 * Creation debits `amount` only - the fee is carved out of it
+                 * (`netAmount = amount - fee`) rather than charged on top. So a
+                 * cancellation must return exactly `amount`; refunding
+                 * `amount + fee` credited money that was never debited.
+                 */
+                const refundAmount = withdrawal.amount;
+
                 const updated = await walletRepository.updateBalance(
                     tx,
                     wallet.id,
                     wallet.version,
-                    withdrawal.amount.plus(withdrawal.fee)
+                    refundAmount
                 );
 
                 if (updated.count === 0) {
@@ -514,13 +499,11 @@ export const withdrawalService = {
                             LedgerEntryType.CREDIT,
 
                         amount:
-                            withdrawal.amount
-                                .plus(withdrawal.fee),
+                            refundAmount,
 
                         balanceAfter:
                             wallet.balance
-                                .plus(withdrawal.amount)
-                                .plus(withdrawal.fee),
+                                .plus(refundAmount),
 
                         description:
                             `Withdrawal cancelled ${withdrawal.referenceNumber}`,

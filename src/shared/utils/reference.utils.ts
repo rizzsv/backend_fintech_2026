@@ -24,3 +24,13 @@ export function generateReferenceNumber(
 
     return `${prefix}${yyyy}${mm}${dd}${random}`;
 }
+
+export const TRANSACTION_REFERENCE_PREFIX = "TRX";
+
+export const ReferenceUtils = {
+    generateTransactionReference(): string {
+        return generateReferenceNumber(
+            TRANSACTION_REFERENCE_PREFIX
+        );
+    },
+};

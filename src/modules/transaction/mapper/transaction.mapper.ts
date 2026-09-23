@@ -46,10 +46,6 @@ export class TransactionMapper {
             fromWallet: item.fromWallet,
 
             toWallet: item.toWallet,
-
-            ledger: item.ledgerEntries,
-
-            logs: item.logs,
         };
     }
 }

@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import jwt from 'jsonwebtoken';
 import { verifyAccessToken } from "../utils/token.utils";
 import { AuthError } from "../errors/AuthError";
 import { authRepository } from '../../modules/auth/repositories/auth.repository';
@@ -11,9 +12,6 @@ export async function authMiddleware(
     try {
         const authHeader = req.headers.authorization;
 
-        console.log("========== AUTH DEBUG ==========");
-        console.log("AUTH HEADER:", authHeader);
-
         if (!authHeader) {
             throw new AuthError(
                 "Unauthorized",
@@ -24,18 +22,35 @@ export async function authMiddleware(
 
         const token = authHeader.replace("Bearer ", "");
 
-        console.log("TOKEN:", token);
+        let payload: { sub: string; sessionId: string };
 
-        const payload = verifyAccessToken(token);
+        try {
+            payload = verifyAccessToken(token);
+        } catch (error) {
+            /**
+             * A rejected token is a client error, not a server fault. Without
+             * this mapping the raw jsonwebtoken error escapes to the global
+             * error handler, which has no case for it and answers 500.
+             */
+            if (error instanceof jwt.TokenExpiredError) {
+                throw new AuthError(
+                    "TokenExpired",
+                    "TOKEN_EXPIRED",
+                    401
+                );
+            }
 
-        console.log("PAYLOAD:", payload);
+            throw new AuthError(
+                "InvalidToken",
+                "INVALID_TOKEN",
+                401
+            );
+        }
 
         const session =
             await authRepository.findSessionById(
                 payload.sessionId
             );
-
-        console.log("SESSION:", session);
 
         if (!session) {
             throw new AuthError(
@@ -50,17 +65,9 @@ export async function authMiddleware(
             sessionId: payload.sessionId
         };
 
-        console.log("AUTH SUCCESS");
-        console.log("================================");
-
         next();
 
     } catch (error) {
-
-        console.error("========== AUTH ERROR ==========");
-        console.error(error);
-        console.error("================================");
-
         next(error);
     }
 }

@@ -229,14 +229,6 @@ export class WalletRepository {
         })
     }
 
-    async getUserLimits(userId: string) {
-        return prisma.userLimit.findUnique({
-            where: {
-                userId
-            }
-        });
-    }
-
     async getWalletWithUser(userId: string) {
         return prisma.wallet.findUnique({
             where: {

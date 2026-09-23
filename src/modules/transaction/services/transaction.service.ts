@@ -8,7 +8,7 @@ import { feeService } from "../../fee/service/fee.service";
 import { notificationService } from "../../notification/service/notification.service";
 import { TransferDTO } from "../types/transaction.types";
 import { WalletPair } from "../../wallet/types/wallet.types";
-import { TransactionQueryDTO } from "../types/transaction.types";
+import { TransactionQueryDTO, TransferConfig } from "../types/transaction.types";
 import { NotFoundError } from "../../../shared/errors/NotFoundError";
 import { AppError } from "../../../shared/errors/AppError";
 import { generateReferenceNumber } from "../../../shared/utils/reference.utils";
@@ -19,15 +19,29 @@ import {
 } from "@opentelemetry/api";
 import { BusinessLogger } from "../../../shared/logger/business-logger";
 import { transferCounter, transferDuration } from "../../../shared/metrics/metrics";
-import { DAILY_TRANSFER_LIMIT } from "../constants/transaction.constants";
+import { DAILY_TRANSFER_LIMIT, FRAUD } from "../constants/transaction.constants";
+import { FeeConfig } from "../../fee/constants/fee.constants";
 import { DailyTransferLimitError } from "../errors/daily-transfer-limit.error";
 import { auditService } from "../../audit/services/audit.services";
 import { fraudService } from "./fraud.service";
 import { NotificationType } from "../../notification/types/notification.types";
-import { transferReversalQueue } from "../queue/transfer-reversal.queue";
 
 
 export class TransactionService {
+
+    /**
+     * Mirrors what `validateDailyLimit`, `fraudService` and `feeService`
+     * enforce, so the figures a client shows cannot drift from the figures the
+     * server applies.
+     */
+    getTransferConfig(): TransferConfig {
+        return {
+            fee: FeeConfig.TRANFER.amount,
+            maxAmount: FRAUD.MAX_SINGGLE_TRANSFER,
+            dailyLimit: DAILY_TRANSFER_LIMIT.BASIC,
+            maxPerMinute: FRAUD.MAX_TRANSFER_PER_MINUTE,
+        };
+    }
 
     private async validateIdempotencyKey(idempotencyKey: string) {
         const existing =
@@ -316,7 +330,18 @@ export class TransactionService {
                                         transactionId: transaction.id,
                                         walletId: wallets.fromWallet.id,
                                         entryType: EntryType.DEBIT,
-                                        amount,
+                                        /**
+                                         * A transfer fee is charged on top of
+                                         * the amount, so the wallet loses
+                                         * `totalDebit`. Recording `amount` here
+                                         * left the fee out of the ledger while
+                                         * `balanceAfter` still reflected it, so
+                                         * the entry could not reproduce the
+                                         * balance it claimed to end on. The
+                                         * withdrawal entry records the figure it
+                                         * actually debits; this now matches.
+                                         */
+                                        amount: feeResult.totalDebit,
                                         balanceAfter:
                                             senderNewBalance,
                                     },
@@ -343,16 +368,19 @@ export class TransactionService {
                                 }
                             );
 
-                            await transactionRepository.completeTransaction(
-                                tx,
-                                transaction.id
-                            );
-
-                            await transactionRepository.updateStatus(
-                                transaction.id,
-                                TransactionStatus.SUCCESS,
-                                tx
-                            );
+                            /**
+                             * `transaction` is the snapshot taken at CREATED, so
+                             * the completed row has to be captured here. Returning
+                             * the snapshot reported `status: "CREATED"` to the
+                             * caller for a transfer that had actually succeeded.
+                             * `completeTransaction` already sets SUCCESS and
+                             * `completedAt`.
+                             */
+                            const completedTransaction =
+                                await transactionRepository.completeTransaction(
+                                    tx,
+                                    transaction.id
+                                );
 
                             await walletRepository.incrementLimitUsage(
                                 tx,
@@ -364,7 +392,7 @@ export class TransactionService {
                                 code: 1, // OK
                             });
 
-                            return transaction;
+                            return completedTransaction;
                         },
 
                         {
@@ -377,16 +405,13 @@ export class TransactionService {
 
                 } catch (error) {
 
-                    // await transferReversalQueue.add(
-                    //     "transfer-reversal",
-                    //     {
-                    //         transactionId: transaction.id,
-                    //         referenceNumber,
-                    //     }
-                    // )
-
-
-
+                    /**
+                     * No compensating reversal is enqueued: every balance,
+                     * ledger and status write happens inside the Serializable
+                     * `prisma.$transaction` above, so a failure here has already
+                     * rolled all of them back. Reversing again would move money
+                     * for a transfer that never landed.
+                     */
                     span.recordException(error as Error);
 
                     span.setStatus({
@@ -576,7 +601,6 @@ export class TransactionService {
 
         const page = query.page ?? 1;
         const limit = query.limit ?? 20;
-        const search = query.search ?? undefined;
 
         const result = await new TransactionRepository().findMany(
             wallet.id,

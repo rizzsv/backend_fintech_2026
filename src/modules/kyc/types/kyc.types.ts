@@ -4,7 +4,6 @@ import "multer";
 export interface UploadKycDocumentsInput {
     userId: string;
     document?: Express.Multer.File;
-    documents?: Express.Multer.File;
     selfie: Express.Multer.File;
 }
 

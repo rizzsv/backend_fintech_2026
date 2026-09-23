@@ -17,7 +17,7 @@ export class DashboardService {
         ] = await Promise.all([
             userRepository.findByIdForDashboard(userId),
             walletRepository.findByUserId(userId),
-            walletRepository.getUserLimits(userId),
+            walletRepository.findUserLimit(userId),
             transactionRepository.getMonthlyStatistics(userId),
             transactionRepository.getCashFlowSeries(userId, 7),
             transactionRepository.getRecentTransactions(userId, 5),

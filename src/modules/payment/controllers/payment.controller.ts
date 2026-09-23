@@ -35,7 +35,8 @@ class PaymentController {
         try {
             const result =
                 await paymentService.getStatus(
-                    req.params.reference as string
+                    req.params.reference as string,
+                    req.user!.id
                 );
 
             return res.json({
@@ -58,7 +59,8 @@ class PaymentController {
                 await paymentService.getMonthlyTopUpReport(
                     req.params.walletId as string,
                     parseInt(req.params.year as string),
-                    parseInt(req.params.month as string)
+                    parseInt(req.params.month as string),
+                    req.user!.id
                 );
 
             return res.json({
@@ -79,7 +81,8 @@ class PaymentController {
 
             const result =
                 await paymentService.cancelPayment(
-                    req.params.reference as string
+                    req.params.reference as string,
+                    req.user!.id
                 );
 
             return res.json({

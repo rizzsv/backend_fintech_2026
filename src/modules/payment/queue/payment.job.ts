@@ -48,22 +48,6 @@ export class PaymentJob {
         );
     }
 
-    async addCancelJob(
-        referenceNumber: string,
-    ) {
-        return paymentQueue.add(
-            PaymentJobs.CANCEL,
-            {
-                referenceNumber,
-            },
-            {
-                jobId: `payment-cancel-${referenceNumber}`,
-                removeOnComplete: 100,
-                removeOnFail: 1000,
-            }
-        );
-    }
-
     async addRetryWebhookJob(
         referenceNumber: string,
     ) {

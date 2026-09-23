@@ -12,9 +12,30 @@ import { redisLock } from "../../../shared/lock/redis-lock.service";
 import { authRepository } from "../../auth/repositories/auth.repository";
 import { auditService } from "../../audit/services/audit.services";
 import { AuditAction, AuditResource } from "../../audit/constant/audit.constan";
+import { walletRepository } from "../../wallet/repositories/wallet.repository";
+import { AppError } from "../../../shared/errors/AppError";
+import { NotFoundError } from "../../../shared/errors/NotFoundError";
 
 
 export class PaymentService {
+
+    /**
+     * A payment is addressed by its reference number, which is predictable
+     * enough to enumerate, so every reference-keyed read or mutation has to
+     * confirm the caller owns the payment first.
+     */
+    private assertOwnership(
+        ownerId: string,
+        userId: string
+    ) {
+        if (ownerId !== userId) {
+            throw new AppError(
+                "Forbidden",
+                403,
+                "FORBIDDEN"
+            );
+        }
+    }
 
     private async createPaymentProcess(
         userId: string,
@@ -217,14 +238,16 @@ export class PaymentService {
         return payment;
     }
 
-    async getStatus(referenceNumber: string) {
+    async getStatus(referenceNumber: string, userId: string) {
 
         const payment =
             await paymentRepository.findByReference(referenceNumber);
 
         if (!payment) {
-            throw new Error("Payment not found");
+            throw new NotFoundError("Payment not found");
         }
+
+        this.assertOwnership(payment.userId, userId);
 
         const transaction =
             await midtransProvider.getTransaction(referenceNumber);
@@ -243,8 +266,20 @@ export class PaymentService {
     async getMonthlyTopUpReport(
         walletId: string,
         year: number,
-        month: number
-){
+        month: number,
+        userId: string
+) {
+    /**
+     * `walletId` arrives from the URL, so it has to be checked against the
+     * caller's own wallet. Without this, any authenticated user could read
+     * another user's monthly top-up total by guessing a wallet id.
+     */
+    const wallet = await walletRepository.findByUserId(userId);
+
+    if (!wallet || wallet.id !== walletId) {
+        throw new NotFoundError("Wallet not found");
+    }
+
     const startDate = new Date(year, month - 1, 1);
         const endDate = new Date(year, month, 0, 23, 59, 59, 999);
 
@@ -255,7 +290,16 @@ export class PaymentService {
     );
 }
 
-    async cancelPayment(referenceNumber: string) {
+    async cancelPayment(referenceNumber: string, userId: string) {
+
+        const payment =
+            await paymentRepository.findByReference(referenceNumber);
+
+        if (!payment) {
+            throw new NotFoundError("Payment not found");
+        }
+
+        this.assertOwnership(payment.userId, userId);
 
         await midtransProvider.cancelTransaction(
             referenceNumber
