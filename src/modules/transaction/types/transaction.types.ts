@@ -45,3 +45,15 @@ export interface WalletPair {
     fromWallet: Wallet;
     toWallet: Wallet;
 }
+
+/**
+ * The transfer rules the service actually enforces, surfaced so clients can
+ * render and pre-validate against them instead of duplicating the numbers.
+ * `fee` is charged on top of `amount`, so the sender is debited `amount + fee`.
+ */
+export interface TransferConfig {
+    fee: number;
+    maxAmount: number;
+    dailyLimit: number;
+    maxPerMinute: number;
+}

@@ -38,3 +38,21 @@ export interface CreateWithdrawalDTO {
     accountName?: string;
     idempotencyKey: string;
 }
+
+/**
+ * Backend-authoritative withdrawal rules, surfaced so clients can render and
+ * pre-validate against the same numbers the service enforces.
+ */
+export interface WithdrawalConfig {
+
+    fee: number;
+
+    minAmount: number;
+
+    maxAmount: number;
+
+    dailyLimit: number;
+
+    methods: WithdrawalMethod[];
+
+}

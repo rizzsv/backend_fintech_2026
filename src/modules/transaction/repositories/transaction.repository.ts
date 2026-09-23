@@ -177,10 +177,32 @@ export class TransactionRepository {
     };
 }
 
+    /**
+     * The detail mapper exposes both counterparties, so they are loaded here.
+     * User fields are selected explicitly - a bare `include` would serve the
+     * password hash and verification tokens to the client.
+     */
     async findTransactionById(id: string) {
+        const counterparty = {
+            select: {
+                id: true,
+                user: {
+                    select: {
+                        email: true,
+                        firstName: true,
+                        lastName: true,
+                    },
+                },
+            },
+        };
+
         return prisma.transaction.findUnique({
             where: {
                 id
+            },
+            include: {
+                fromWallet: counterparty,
+                toWallet: counterparty,
             }
         });
     }

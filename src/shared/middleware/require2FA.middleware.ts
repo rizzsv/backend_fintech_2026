@@ -1,5 +1,5 @@
 import {Request, Response, NextFunction} from "express";
-import {UnautorizedError} from "../errors/UnauthorizedError";
+import {AuthError} from "../errors/AuthError";
 import { sessionRepository } from "../../modules/auth/repositories/session.repository";
 
 export const require2FA = async (
@@ -9,10 +9,7 @@ export const require2FA = async (
 ) => {
     try {
         if (!req.user) {
-            return res.status(401).json({
-                success: false,
-                message: "Unauthorized"
-            });
+            throw new AuthError("Unauthorized");
         }
 
         const session = await sessionRepository.findById(
@@ -20,19 +17,15 @@ export const require2FA = async (
         )
 
         if (!session) {
-            return res.status(401).json({
-                success: false,
-                message: "Session not found"
-            });
+            throw new AuthError("SessionNotFound");
         }
 
-        if(!session.twoFactorVerified) {
-            return res.status(401).json({
-                success: false,
-                message: "2FA verification required"
-            });
+        if(!session.is2FAVerified) {
+            throw new AuthError("Unauthorized");
         }
+
+        next();
     }catch (error) {
-
+        next(error);
     }
 }

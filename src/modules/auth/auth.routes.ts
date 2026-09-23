@@ -36,6 +36,17 @@ router.post(
   authController.verifyEmail.bind(authController)
 );
 
+/**
+ * Verification links opened straight from an email arrive as a GET with the
+ * token in the query string. The controller reads `validatedQuery` for GET and
+ * `body` for POST, so both entry points share one handler.
+ */
+router.get(
+  "/verify-email",
+  validateRequest(verifyEmailSchema, "query"),
+  authController.verifyEmail.bind(authController)
+);
+
 router.post(
   "/logout",
   validateRequest(logoutSchema),

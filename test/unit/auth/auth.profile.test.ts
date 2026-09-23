@@ -1,17 +1,43 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { AuthService } from '../../../src/modules/auth/services/auth.service';
 import { authRepository } from '../../../src/modules/auth/repositories/auth.repository';
 import { DashboardService } from '../../../src/modules/dashboard/services/dashboard.service';
 import { walletRepository } from '../../../src/modules/wallet/repositories/wallet.repository';
 import { transactionRepository } from '../../../src/modules/transaction/repositories/transaction.repository';
 import { userRepository } from '../../../src/modules/auth/repositories/user.repository';
-import { KycStatus, KycTier, UserRole } from '@prisma/client';
+import { KycStatus, KycTier, Prisma, UserRole } from '@prisma/client';
 
 vi.mock('../../../src/modules/auth/repositories/auth.repository', () => ({
   authRepository: {
     findById: vi.fn(),
   },
 }));
+
+vi.mock('../../../src/modules/auth/repositories/user.repository', () => ({
+  userRepository: {
+    findByIdForDashboard: vi.fn(),
+  },
+}));
+
+vi.mock('../../../src/modules/wallet/repositories/wallet.repository', () => ({
+  walletRepository: {
+    findByUserId: vi.fn(),
+    findUserLimit: vi.fn(),
+  },
+}));
+
+vi.mock('../../../src/modules/transaction/repositories/transaction.repository', () => ({
+  transactionRepository: {
+    getMonthlyStatistics: vi.fn(),
+    getCashFlowSeries: vi.fn(),
+    getRecentTransactions: vi.fn(),
+    getPendingActivities: vi.fn(),
+  },
+}));
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
 
 describe('AuthService.me', () => {
   it('strips sensitive fields from profile response', async () => {
@@ -73,64 +99,174 @@ describe('AuthService.me', () => {
 
 describe('DashboardService', () => {
   it('maps user limits from userLimit table into dashboard limits', async () => {
-    const userRepo = { findById: vi.fn() };
-    const walletRepo = {
-      findByUserId: vi.fn(),
-      findUserLimit: vi.fn(),
-    };
-    const txRepo = {
-      getRecentTransactions: vi.fn(),
-    };
+    const service = new DashboardService();
 
-    const service = new DashboardService(
-      userRepo,
-      walletRepo,
-      txRepo,
-      { findByUserId: vi.fn().mockResolvedValue({ status: KycStatus.PENDING, tier: KycTier.BASIC }) },
-      { getSecurityStatus: vi.fn().mockResolvedValue({ emailVerified: false, twoFactorEnabled: false }) }
-    );
-
-    userRepo.findById.mockResolvedValue({
+    vi.mocked(userRepository.findByIdForDashboard).mockResolvedValue({
       id: 'user-1',
       email: 'user@example.com',
       firstName: 'Rizq',
       lastName: 'Valeant',
+      isActive: true,
       isEmailVerified: false,
       kycStatus: KycStatus.PENDING,
       kycTier: KycTier.BASIC,
+      has2FA: false,
     } as any);
 
-    walletRepo.findByUserId.mockResolvedValue({
-      balance: { toNumber: () => 2500000 },
+    vi.mocked(walletRepository.findByUserId).mockResolvedValue({
+      id: 'wallet-1',
+      balance: new Prisma.Decimal(2_500_000),
       currency: 'IDR',
+      isFrozen: false,
     } as any);
 
-    walletRepo.findUserLimit.mockResolvedValue({
-      dailyLimit: 10000000,
-      monthlyLimit: 50000000,
-      dailyUsed: 0,
-      monthlyUsed: 0,
+    vi.mocked(walletRepository.findUserLimit).mockResolvedValue({
+      dailyLimit: new Prisma.Decimal(10_000_000),
+      monthlyLimit: new Prisma.Decimal(50_000_000),
+      dailyUsed: new Prisma.Decimal(2_500_000),
+      monthlyUsed: new Prisma.Decimal(0),
     } as any);
 
-    txRepo.getRecentTransactions.mockResolvedValue([]);
+    vi.mocked(transactionRepository.getMonthlyStatistics).mockResolvedValue({
+      totalTopUp: new Prisma.Decimal(0),
+      totalTransfer: new Prisma.Decimal(0),
+      totalWithdrawal: new Prisma.Decimal(0),
+    } as any);
+
+    vi.mocked(transactionRepository.getCashFlowSeries).mockResolvedValue([] as any);
+    vi.mocked(transactionRepository.getRecentTransactions).mockResolvedValue([] as any);
+    vi.mocked(transactionRepository.getPendingActivities).mockResolvedValue([] as any);
 
     const dashboard = await service.getDashboard('user-1');
 
+    // Monetary values are serialised as fixed-point strings so Decimal
+    // precision survives the JSON boundary.
     expect(dashboard.limits).toEqual({
       dailyTransfer: {
-        limit: 10000000,
-        used: 0,
-        remaining: 10000000,
+        limit: '10000000.00',
+        used: '2500000.00',
+        remaining: '7500000.00',
+        percentageUsed: 25,
       },
       monthlyTransfer: {
-        limit: 50000000,
-        used: 0,
-        remaining: 50000000,
+        limit: '50000000.00',
+        used: '0.00',
+        remaining: '50000000.00',
+        percentageUsed: 0,
       },
     });
-    expect(dashboard.security).toEqual({
-      emailVerified: false,
-      twoFactorEnabled: false,
+
+    expect(dashboard.accountOverview).toEqual({
+      isActive: true,
+      isEmailVerified: false,
+      kyc: {
+        status: KycStatus.PENDING,
+        tier: KycTier.BASIC,
+      },
+      actions: {
+        // Transfer and withdrawal both require an approved KYC.
+        canTopUp: true,
+        canTransfer: false,
+        canWithdraw: false,
+      },
     });
+  });
+
+  it('falls back to zeroed limits when the user has no limit row', async () => {
+    const service = new DashboardService();
+
+    vi.mocked(userRepository.findByIdForDashboard).mockResolvedValue({
+      id: 'user-1',
+      email: 'user@example.com',
+      firstName: null,
+      lastName: null,
+      isActive: true,
+      isEmailVerified: true,
+      kycStatus: KycStatus.APPROVED,
+      kycTier: KycTier.BASIC,
+      has2FA: false,
+    } as any);
+
+    vi.mocked(walletRepository.findByUserId).mockResolvedValue({
+      id: 'wallet-1',
+      balance: new Prisma.Decimal(0),
+      currency: 'IDR',
+      isFrozen: false,
+    } as any);
+
+    vi.mocked(walletRepository.findUserLimit).mockResolvedValue(null as any);
+
+    vi.mocked(transactionRepository.getMonthlyStatistics).mockResolvedValue({
+      totalTopUp: new Prisma.Decimal(0),
+      totalTransfer: new Prisma.Decimal(0),
+      totalWithdrawal: new Prisma.Decimal(0),
+    } as any);
+
+    vi.mocked(transactionRepository.getCashFlowSeries).mockResolvedValue([] as any);
+    vi.mocked(transactionRepository.getRecentTransactions).mockResolvedValue([] as any);
+    vi.mocked(transactionRepository.getPendingActivities).mockResolvedValue([] as any);
+
+    const dashboard = await service.getDashboard('user-1');
+
+    // Guards the zero-division branch of the percentage calculation.
+    expect(dashboard.limits.dailyTransfer).toEqual({
+      limit: '0.00',
+      used: '0.00',
+      remaining: '0.00',
+      percentageUsed: 0,
+    });
+    expect(dashboard.accountOverview.actions).toEqual({
+      canTopUp: true,
+      canTransfer: true,
+      canWithdraw: true,
+    });
+  });
+
+  it('does not expose sensitive user fields', async () => {
+    const service = new DashboardService();
+
+    vi.mocked(userRepository.findByIdForDashboard).mockResolvedValue({
+      id: 'user-1',
+      email: 'user@example.com',
+      firstName: 'Rizq',
+      lastName: 'Valeant',
+      isActive: true,
+      isEmailVerified: true,
+      kycStatus: KycStatus.APPROVED,
+      kycTier: KycTier.BASIC,
+      has2FA: false,
+    } as any);
+
+    vi.mocked(walletRepository.findByUserId).mockResolvedValue({
+      id: 'wallet-1',
+      balance: new Prisma.Decimal(0),
+      currency: 'IDR',
+      isFrozen: false,
+    } as any);
+
+    vi.mocked(walletRepository.findUserLimit).mockResolvedValue(null as any);
+
+    vi.mocked(transactionRepository.getMonthlyStatistics).mockResolvedValue({
+      totalTopUp: new Prisma.Decimal(0),
+      totalTransfer: new Prisma.Decimal(0),
+      totalWithdrawal: new Prisma.Decimal(0),
+    } as any);
+
+    vi.mocked(transactionRepository.getCashFlowSeries).mockResolvedValue([] as any);
+    vi.mocked(transactionRepository.getRecentTransactions).mockResolvedValue([] as any);
+    vi.mocked(transactionRepository.getPendingActivities).mockResolvedValue([] as any);
+
+    const dashboard = await service.getDashboard('user-1');
+
+    expect(dashboard.user).toEqual({
+      id: 'user-1',
+      firstName: 'Rizq',
+      lastName: 'Valeant',
+      email: 'user@example.com',
+    });
+    expect(dashboard.user).not.toHaveProperty('passwordHash');
+    expect(dashboard.user).not.toHaveProperty('emailVerificationToken');
+    expect(dashboard.user).not.toHaveProperty('kycDocumentPath');
+    expect(dashboard.user).not.toHaveProperty('kycSelfiePath');
   });
 });

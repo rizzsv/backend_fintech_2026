@@ -2,6 +2,12 @@ import request from "supertest";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import app from "../../../src/app";
 import { dashboardService } from "../../../src/modules/dashboard/services/dashboard.service";
+import { authRepository } from "../../../src/modules/auth/repositories/auth.repository";
+import {
+    bearerToken,
+    buildTestSession,
+    createExpiredAccessToken,
+} from "../../helpers/auth";
 
 vi.mock(
     "../../../src/modules/dashboard/services/dashboard.service",
@@ -12,8 +18,25 @@ vi.mock(
     })
 );
 
+/**
+ * Only the session lookup is stubbed. The request still carries a genuinely
+ * signed token through `authMiddleware`, so token verification stays covered.
+ */
+vi.mock(
+    "../../../src/modules/auth/repositories/auth.repository",
+    () => ({
+        authRepository: {
+            findSessionById: vi.fn(),
+        },
+    })
+);
+
 beforeEach(() => {
     vi.clearAllMocks();
+
+    vi.mocked(authRepository.findSessionById).mockResolvedValue(
+        buildTestSession() as any
+    );
 });
 
 describe("Dashboard Endpoint", () => {
@@ -91,7 +114,7 @@ describe("Dashboard Endpoint", () => {
 
         const response = await request(app)
             .get("/api/v1/dashboard")
-            .set("Authorization", "Bearer valid-token");
+            .set("Authorization", bearerToken());
 
         expect(response.status).toBe(200);
         expect(response.body.success).toBe(true);
@@ -124,6 +147,38 @@ describe("Dashboard Endpoint", () => {
 
         expect(response.status).toBe(401);
         expect(response.body.success).toBe(false);
+    });
+
+    it("GET /dashboard should return 401 for a malformed token", async () => {
+        const response = await request(app)
+            .get("/api/v1/dashboard")
+            .set("Authorization", "Bearer not-a-real-jwt");
+
+        expect(response.status).toBe(401);
+        expect(response.body.success).toBe(false);
+        expect(response.body.code).toBe("INVALID_TOKEN");
+        expect(dashboardService.getDashboard).not.toHaveBeenCalled();
+    });
+
+    it("GET /dashboard should return 401 for an expired token", async () => {
+        const response = await request(app)
+            .get("/api/v1/dashboard")
+            .set("Authorization", bearerToken(createExpiredAccessToken()));
+
+        expect(response.status).toBe(401);
+        expect(response.body.code).toBe("TOKEN_EXPIRED");
+        expect(dashboardService.getDashboard).not.toHaveBeenCalled();
+    });
+
+    it("GET /dashboard should return 401 when the session is gone", async () => {
+        vi.mocked(authRepository.findSessionById).mockResolvedValue(null);
+
+        const response = await request(app)
+            .get("/api/v1/dashboard")
+            .set("Authorization", bearerToken());
+
+        expect(response.status).toBe(401);
+        expect(dashboardService.getDashboard).not.toHaveBeenCalled();
     });
 
     it("GET /dashboard should have correct KYC and account overview structure", async () => {
@@ -193,7 +248,7 @@ describe("Dashboard Endpoint", () => {
 
         const response = await request(app)
             .get("/api/v1/dashboard")
-            .set("Authorization", "Bearer valid-token");
+            .set("Authorization", bearerToken());
 
         expect(response.status).toBe(200);
         const data = response.body.data;

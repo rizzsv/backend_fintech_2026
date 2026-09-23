@@ -13,6 +13,16 @@ const router = Router();
 
 router.use(authMiddleware);
 
+/**
+ * Must stay above `GET /:id`, otherwise "config" is read as a transaction id.
+ */
+router.get(
+    "/config",
+    transactionController.config.bind(
+        transactionController
+    )
+);
+
 router.get(
     "/",
     validateRequest(transactionQuerySchema, "query"),
@@ -31,7 +41,9 @@ router.get(
 router.post(
     "/transfer",
     validateRequest(transferSchema.omit({ idempotencyKey: true }), "body"),
-    transactionController.transfer
+    transactionController.transfer.bind(
+        transactionController
+    )
 );
 
 export default router;

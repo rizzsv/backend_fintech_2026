@@ -1,8 +1,7 @@
-import { Request, Response } from "express";
+import { Request, Response, NextFunction } from "express";
 import { withdrawalWebhookValidator } from "../webhook/wdWebhook.validator";
 import { withdrawalWebhookService } from "../webhook/withdrawal-webhook.service";
-
-
+import { withdrawalService } from "../services/withdrawal.service";
 
 export class WithdrawalController {
 
@@ -34,16 +33,47 @@ export class WithdrawalController {
         })
     }
 
-    async create(
-        req: Request,
-        res: Response
-    ) {
-
+async config(
+    req: Request,
+    res: Response,
+    next: NextFunction
+) {
+    try {
         return res.json({
-            message: "Coming soon",
+            success: true,
+            data: withdrawalService.getConfig(),
         });
-
+    } catch (error) {
+        next(error);
     }
+}
+
+async create(
+    req: Request,
+    res: Response,
+    next: NextFunction
+) {
+    try {
+        const idempotencyKey =
+            req.headers["idempotency-key"] as string;
+
+        const result =
+            await withdrawalService.createWithdrawal(
+                req.user!.id,
+                {
+                    ...req.body,
+                    idempotencyKey,
+                }
+            );
+
+        return res.status(201).json({
+            success: true,
+            data: result,
+        });
+    } catch (error) {
+        next(error);
+    }
+}
 
 }
 

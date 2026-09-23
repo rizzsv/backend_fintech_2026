@@ -13,6 +13,28 @@ interface TransactionParams {
 
 export class TransactionController {
 
+    async config(
+        _req: Request,
+        res: Response,
+        next: NextFunction
+    ) {
+
+        try {
+
+            return ResponseUtils.success(
+                res,
+                transactionService.getTransferConfig(),
+                "Transfer configuration fetched successfully"
+            );
+
+        } catch (error) {
+
+            next(error);
+
+        }
+
+    }
+
     async getTransactions(
         req: Request,
         res: Response,

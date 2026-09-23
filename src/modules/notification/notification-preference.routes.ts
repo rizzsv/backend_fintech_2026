@@ -1,6 +1,8 @@
 import { Router } from "express";
 import { notificationPreferenceController } from "./controllers/notification-preference.controller";
 import { authMiddleware } from "../../shared/middleware/auth.middleware";
+import { validateRequest } from "../../shared/middleware/requestValidator.middleware";
+import { updateNotificationPreferenceSchema } from "./validators/notification.validator";
 
 
 
@@ -21,6 +23,7 @@ router.get(
 router.patch(
     "/preferences",
     authMiddleware,
+    validateRequest(updateNotificationPreferenceSchema),
     notificationPreferenceController.update.bind(
         notificationPreferenceController
     )

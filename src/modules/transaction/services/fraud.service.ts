@@ -27,19 +27,38 @@ export class FraudService {
     }
 
     private async validateVelocity(
-        walletId: string
+        wallet: Wallet
     ) {
 
         const total =
             await transactionRepository
                 .countTransferLastMinute(
-                    walletId
+                    wallet.id
                 );
 
         if (
             total >=
             FRAUD.MAX_TRANSFER_PER_MINUTE
         ) {
+
+            /**
+             * Logged here rather than after `validateTransfer` succeeds: an
+             * unconditional log recorded FRAUD_DETECTED against every
+             * legitimate transfer, which made the audit trail unusable for the
+             * thing it exists to evidence.
+             */
+            await auditService.log({
+                userId: wallet.userId,
+                action: "FRAUD_DETECTED",
+                resource: "TRANSFER",
+                entityId: wallet.id,
+                status: "FAILED",
+                metadata: {
+                    reason: "VELOCITY_LIMIT",
+                    transfersLastMinute: total,
+                    limit: FRAUD.MAX_TRANSFER_PER_MINUTE,
+                },
+            });
 
             throw new Error(
                 "Too many transfers"
@@ -61,19 +80,8 @@ export class FraudService {
         this.validateAmount(amount);
 
         await this.validateVelocity(
-            sender.id
+            sender
         );
-
-        await auditService.log({
-            userId: sender.userId,
-            action: "FRAUD_DETECTED",
-            resource: "TRANSFER",
-            entityId: sender.id,
-            status: "FAILED",
-            metadata: {
-                reason: "VELOCITY_LIMIT",
-            },
-        });
     }
 }
 
