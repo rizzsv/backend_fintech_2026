@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "tsc",
+    "build": "tsc && npx prisma generate",
+    "start": "node dist/server.js",
     "redis:flush": "docker exec fintech-redis redis-cli FLUSHALL",
     "redis:cli": "docker exec -it fintech-redis redis-cli",
     "test": "vitest",
@@ -18,6 +19,9 @@
   "author": "",
   "license": "ISC",
   "type": "commonjs",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "devDependencies": {
     "@types/bcrypt": "^6.0.0",
     "@types/cors": "^2.8.19",
