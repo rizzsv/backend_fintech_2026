@@ -25,6 +25,7 @@ import { DailyTransferLimitError } from "../errors/daily-transfer-limit.error";
 import { auditService } from "../../audit/services/audit.services";
 import { fraudService } from "./fraud.service";
 import { NotificationType } from "../../notification/types/notification.types";
+import { notificationDispatcherService } from "../../notification/service/notification-dispatcher.service";
 
 
 export class TransactionService {
@@ -457,9 +458,29 @@ export class TransactionService {
                 {
                     senderUserId: userId,
                     receiverWalletId: dto.toWalletId,
+                    recipientAccountNumber: dto.recipientAccountNumber,
                     amount: dto.amount,
                 }
             );
+            
+            // Resolve recipient wallet ID from account number or direct wallet ID
+            let toWalletId: string;
+            if (dto.recipientAccountNumber) {
+                const recipientWallet = await walletRepository.findByAccountNumber(dto.recipientAccountNumber);
+                if (!recipientWallet) {
+                    throw new NotFoundError('Recipient account number not found');
+                }
+                toWalletId = recipientWallet.id;
+            } else if (dto.toWalletId) {
+                toWalletId = dto.toWalletId;
+            } else {
+                throw new AppError(
+                    'Either recipientAccountNumber or toWalletId must be provided',
+                    400,
+                    'INVALID_RECIPIENT'
+                );
+            }
+            
             const amount = new Prisma.Decimal(dto.amount);
             await this.validateIdempotencyKey(
                 dto.idempotencyKey
@@ -476,7 +497,7 @@ export class TransactionService {
             const wallet =
                 await this.validateWallets(
                     userId,
-                    dto.toWalletId
+                    toWalletId
                 );
 
             BusinessLogger.info(
@@ -525,24 +546,39 @@ export class TransactionService {
                 }
             );
             try {
+                // Fetch sender and recipient account numbers for notification metadata
+                const senderWallet = await walletRepository.findById(wallet.fromWallet.id);
+                const recipientWallet = await walletRepository.findById(wallet.toWallet.id);
+
                 await Promise.all([
-                    notificationService.createNotification({
+                    // Sender notification
+                    notificationDispatcherService.dispatchFinancialNotification({
                         userId,
                         type: NotificationType.TRANSFER_SUCCESS,
-                        channel: NotificationChannel.IN_APP,
                         title: "Transfer Berhasil",
-                        message: `Transfer sebesar ${amount.toString()} berhasil.`,
+                        message: `Transfer sebesar Rp${amount.toNumber().toLocaleString('id-ID')} berhasil.`,
                         resource: "TRANSACTION",
                         entityId: transaction.id,
+                        metadata: {
+                            amount: amount.toString(),
+                            fee: feeService.calculateTranferFee(amount).fee.toString(),
+                            recipientAccountNumber: recipientWallet?.accountNumber || 'Unknown',
+                            referenceNumber,
+                        },
                     }),
-                    notificationService.createNotification({
+                    // Recipient notification
+                    notificationDispatcherService.dispatchFinancialNotification({
                         userId: wallet.toWallet.userId,
                         type: NotificationType.TRANSFER_RECEIVED,
-                        channel: NotificationChannel.IN_APP,
                         title: "Transfer Masuk",
-                        message: `Anda menerima transfer sebesar ${amount.toString()}.`,
+                        message: `Anda menerima transfer sebesar Rp${amount.toNumber().toLocaleString('id-ID')}.`,
                         resource: "TRANSACTION",
                         entityId: transaction.id,
+                        metadata: {
+                            amount: amount.toString(),
+                            senderAccountNumber: senderWallet?.accountNumber || 'Unknown',
+                            referenceNumber,
+                        },
                     }),
                     this.invalidateCache(
                         wallet.fromWallet.id,

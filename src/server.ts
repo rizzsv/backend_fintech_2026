@@ -4,15 +4,16 @@ import { logger } from "./shared/logger/logger";
 import { sdk }from "./shared/telemetry/tracing";
 import { closeQueues }from "./shared/queue/shutdown";
 import { redis }from "./shared/config/redis";
-import { paymentWorker }from "./modules/payment/workers/payment.worker";
-import { paymentScheduler }from "./modules/payment/jobs/payment.scheduler";
-import { paymentWebhookWorker } from "./modules/payment/workers/payment-webhook.worker";
-import { paymentDLQWorker } from "./modules/payment/dead-letter/payment-dlq.worker";
-import {withdrawalReconciliationScheduler} from "./modules/withdrawal/jobs/withdrawal.reconciliation.scheduler";
-import "./modules/withdrawal/workers/withdrawal.worker";
-import "./modules/notification/workers/notification.worker";
-import "./modules/payment/workers/payment.worker";
-import { startNotificationQueueMetricCollector } from "./modules/notification/observability/notification.metrics";
+// Workers and schedulers disabled for debugging
+// import { paymentWorker }from "./modules/payment/workers/payment.worker";
+// import { paymentScheduler }from "./modules/payment/jobs/payment.scheduler";
+// import { paymentWebhookWorker } from "./modules/payment/workers/payment-webhook.worker";
+// import { paymentDLQWorker } from "./modules/payment/dead-letter/payment-dlq.worker";
+// import {withdrawalReconciliationScheduler} from "./modules/withdrawal/jobs/withdrawal.reconciliation.scheduler";
+// import "./modules/withdrawal/workers/withdrawal.worker";
+// import "./modules/notification/workers/notification.worker";
+// import "./modules/payment/workers/payment.worker";
+// import { startNotificationQueueMetricCollector } from "./modules/notification/observability/notification.metrics";
 
 
 
@@ -24,17 +25,18 @@ async function bootstrap() {
 
     try {
 
+        // Telemetry disabled - OTLP collector not available
+        // await sdk.start();
+        logger.warn('Telemetry SDK disabled - OTLP collector not running');
 
-        await sdk.start();
-
-        const PORT =
-            process.env.PORT || 3000;
+        const PORT = parseInt(process.env.PORT || '3000', 10);
 
 
 
         server =
             app.listen(
                 PORT,
+                "0.0.0.0",
                 () => {
 
                     logger.info(
@@ -46,10 +48,11 @@ async function bootstrap() {
 
 
 
-        await paymentScheduler.bootstrap();
-
-        startNotificationQueueMetricCollector();
-        withdrawalReconciliationScheduler.start();
+        // Schedulers disabled temporarily for startup debugging
+        // await paymentScheduler.bootstrap();
+        // startNotificationQueueMetricCollector();
+        // withdrawalReconciliationScheduler.start();
+        logger.warn('Background schedulers disabled for debugging');
 
         logger.info(
             "Application bootstrap completed"
@@ -108,13 +111,13 @@ async function gracefulShutdown(
 
         }
 
-        withdrawalReconciliationScheduler.stop();
+        // withdrawalReconciliationScheduler.stop();
 
-        await paymentWorker.close();
+        // await paymentWorker.close();
 
-        await paymentWebhookWorker.close();
+        // await paymentWebhookWorker.close();
 
-        await paymentDLQWorker.close();
+        // await paymentDLQWorker.close();
 
         await closeQueues();
 

@@ -56,6 +56,29 @@ export class WithdrawalWebhookService {
                 }
 
 
+                //---------------------------------------
+                // DEMO BYPASS: Ignore webhooks for demo users
+                //---------------------------------------
+                const user = await tx.user.findUnique({
+                    where: { id: withdrawal.userId },
+                    select: { id: true, isDemo: true },
+                });
+
+                if (user?.isDemo) {
+                    BusinessLogger.warn(
+                        "Ignoring webhook for demo withdrawal",
+                        {
+                            referenceNumber: payload.referenceNumber,
+                            userId: withdrawal.userId,
+                        }
+                    );
+
+                    return {
+                        message: "Demo withdrawal webhook ignored",
+                        demo: true,
+                    };
+                }
+
 
                 //--------------------------------
                 // Idempotency

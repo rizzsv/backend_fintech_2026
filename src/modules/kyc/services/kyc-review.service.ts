@@ -1,7 +1,9 @@
-import { KycStatus } from "@prisma/client";
+import { KycStatus, NotificationChannel } from "@prisma/client";
 import { KycRepository } from "../repositories/kyc.repository";
 import { KycReviewDecision, ManualKycReviewInput, ManualKycReviewResponse } from "../types/kyc-review.types";
 import { PrismaKycRepository } from "../repositories/prisma-kyc.repository";
+import { notificationService } from "../../notification/service/notification.service";
+import { NotificationType } from "../../notification/types/notification.types";
 
 
 export class KycReviewService {
@@ -45,15 +47,44 @@ export class KycReviewService {
         const reviewedAt = new Date();
 
         const updated = await this.kycRepository.review(
-            kycId,
-            {
-                status,
-                reviewNote: reviewNote?.trim(),
-                reviewedAt
-            }
-        );
+                    kycId,
+                    {
+                        status,
+                        reviewNote: reviewNote?.trim(),
+                        reviewedAt
+                    }
+                );
 
-        return {
+                // Send KYC status notification
+                const notificationType = decision === KycReviewDecision.APPROVE 
+                    ? NotificationType.KYC_APPROVED 
+                    : NotificationType.KYC_REJECTED;
+        
+                const title = decision === KycReviewDecision.APPROVE
+                    ? "Verifikasi KYC disetujui"
+                    : "Verifikasi KYC ditolak";
+        
+                const message = decision === KycReviewDecision.APPROVE
+                    ? "Selamat! Verifikasi KYC Anda telah disetujui. Anda sekarang dapat mengakses semua fitur."
+                    : `Verifikasi KYC Anda ditolak. ${reviewNote?.trim() || "Silakan ajukan ulang dengan dokumen yang valid."}`;
+
+                notificationService.createNotification({
+                    userId: updated.userId,
+                    type: notificationType,
+                    channel: NotificationChannel.IN_APP,
+                    title,
+                    message,
+                    resource: "KYC",
+                    entityId: updated.id,
+                    metadata: {
+                        status: updated.status,
+                        reviewNote: updated.reviewNote,
+                    },
+                }).catch(() => {
+                    // Fire and forget
+                });
+
+                return {
             id: updated.id,
             userId: updated.userId,
             status: updated.status,

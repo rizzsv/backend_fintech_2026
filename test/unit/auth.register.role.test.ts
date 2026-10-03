@@ -16,6 +16,9 @@ vi.mock('../../src/modules/auth/repositories/auth.repository', () => ({
 vi.mock('../../src/shared/config/database', () => ({
   prisma: {
     $transaction: vi.fn(),
+    otpCode: {
+      create: vi.fn(),
+    },
   },
 }));
 
@@ -33,7 +36,10 @@ vi.mock('../../src/shared/helper/refreshtoken.helper', () => ({
 }));
 
 vi.mock('../../src/modules/notification/service/notification.service', () => ({
-  notificationService: { sendVerificationEmail: vi.fn() },
+  notificationService: { 
+    sendVerificationEmail: vi.fn(),
+    sendOTP: vi.fn(),
+  },
 }));
 describe('AuthService.register', () => {
   const service = new AuthService();
@@ -63,7 +69,8 @@ describe('AuthService.register', () => {
     expect(authRepository.createRegistration).toHaveBeenCalledWith(
       expect.objectContaining({
         role: UserRole.ADMIN,
-        verificationTokenHash: 'verification-token',
+        passwordHash: 'hashed-password',
+        email: 'admin@example.com',
       })
     );
   });

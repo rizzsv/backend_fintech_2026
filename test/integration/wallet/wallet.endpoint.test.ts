@@ -37,20 +37,20 @@ vi.mock(
 vi.mock(
   "../../../src/modules/wallet/services/wallet.service",
   () => ({
-    WalletService: vi.fn().mockImplementation(function () {
+    WalletService: vi.fn(function (this: any) {
+      // Mock constructor returns mock instance
       return walletServiceMock;
     }),
   })
 );
 
+// Import app after mocks are set up
+const { default: app } = await import("../../helpers/app");
+
 describe("Wallet Endpoint", () => {
-  let app: any;
 
-  beforeEach(async () => {
+  beforeEach(() => {
     vi.clearAllMocks();
-
-    // import setelah mock
-    app = (await import("../../helpers/app")).default;
   });
 
   it("GET /wallet should return wallet", async () => {

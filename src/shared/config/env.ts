@@ -36,6 +36,9 @@ const schema = z.object({
 
     BULL_BOARD_USERNAME: z.string(),
     BULL_BOARD_PASSWORD: z.string(),
+
+    // Payment mode: 'simulated' for portfolio/demo, 'production' for real payment
+    PAYMENT_MODE: z.enum(['simulated', 'production']).default('simulated'),
         
 });
 
