@@ -5,7 +5,7 @@ import { FeeConfig } from "../../../src/modules/fee/constants/fee.constants";
 import { DAILY_TRANSFER_LIMIT, FRAUD } from "../../../src/modules/transaction/constants/transaction.constants";
 import { DailyTransferLimitError } from "../../../src/modules/transaction/errors/daily-transfer-limit.error";
 import { ledgerRepository } from "../../../src/modules/ledger/index";
-import { notificationService } from "../../../src/modules/notification/service/notification.service";
+import { notificationDispatcherService } from "../../../src/modules/notification/service/notification-dispatcher.service";
 import { transactionRepository } from "../../../src/modules/transaction/repositories/transaction.repository";
 import { TransactionService } from "../../../src/modules/transaction/services/transaction.service";
 import { walletRepository } from "../../../src/modules/wallet/repositories/wallet.repository";
@@ -52,6 +52,7 @@ vi.mock("../../../src/modules/wallet/repositories/wallet.repository", () => {
     const walletRepository = {
         findByUserId: vi.fn(),
         findWalletById: vi.fn(),
+        findById: vi.fn(),
         updateBalance: vi.fn(),
         incrementLimitUsage: vi.fn(),
     };
@@ -73,6 +74,12 @@ vi.mock("../../../src/modules/ledger/index", () => ({
 vi.mock("../../../src/modules/notification/service/notification.service", () => ({
     notificationService: {
         createNotification: vi.fn(),
+    },
+}));
+
+vi.mock("../../../src/modules/notification/service/notification-dispatcher.service", () => ({
+    notificationDispatcherService: {
+        dispatchFinancialNotification: vi.fn().mockResolvedValue(undefined),
     },
 }));
 
@@ -149,6 +156,11 @@ beforeEach(() => {
 
     vi.mocked(walletRepository.findByUserId).mockImplementation((async () => sender) as any);
     vi.mocked(walletRepository.findWalletById).mockImplementation((async () => receiver) as any);
+    vi.mocked(walletRepository.findById).mockImplementation((async (id: string) => {
+        if (id === sender.id) return sender;
+        if (id === receiver.id) return receiver;
+        return null;
+    }) as any);
     vi.mocked(walletRepository.updateBalance).mockResolvedValue({ count: 1 } as any);
 });
 
@@ -341,10 +353,10 @@ describe("transfer side effects", () => {
     it("notifies both parties and drops the cached balances", async () => {
         await transfer();
 
-        expect(notificationService.createNotification).toHaveBeenCalledTimes(2);
+        expect(notificationDispatcherService.dispatchFinancialNotification).toHaveBeenCalledTimes(2);
 
         const recipients = vi
-            .mocked(notificationService.createNotification)
+            .mocked(notificationDispatcherService.dispatchFinancialNotification)
             .mock.calls.map(([payload]) => payload.userId);
 
         expect(recipients).toEqual(
@@ -353,7 +365,7 @@ describe("transfer side effects", () => {
     });
 
     it("keeps a committed transfer successful when a side effect fails", async () => {
-        vi.mocked(notificationService.createNotification).mockRejectedValue(
+        vi.mocked(notificationDispatcherService.dispatchFinancialNotification).mockRejectedValue(
             new Error("notification channel down")
         );
 

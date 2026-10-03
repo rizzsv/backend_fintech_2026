@@ -19,6 +19,20 @@ export class WalletRepository {
         });
     }
 
+    async findByAccountNumber(accountNumber: string, tx?: Tx) {
+
+        const db = tx ?? prisma;
+
+        return db.wallet.findUnique({
+            where: {
+                accountNumber
+            },
+            include: {
+                user: true
+            }
+        });
+    }
+
         async findById(
         walletId: string,
         tx?: Prisma.TransactionClient

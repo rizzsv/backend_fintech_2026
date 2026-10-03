@@ -21,8 +21,8 @@ export class AuthRepository {
         firstName?: string;
         lastName?: string;
         role: UserRole;
-        verificationTokenHash: string;
-        verificationExpiresAt: Date;
+        verificationTokenHash: string | null;
+        verificationExpiresAt: Date | null;
     }) {
         const {
             verificationTokenHash,
@@ -35,12 +35,15 @@ export class AuthRepository {
 
             await this.createWallet(tx, user.id);
             await this.createUserLimit(tx, user.id);
-            await this.updateVerificationTokenRegister(
-                tx,
-                user.id,
-                verificationTokenHash,
-                verificationExpiresAt
-            );
+            
+            if (verificationTokenHash && verificationExpiresAt) {
+                await this.updateVerificationTokenRegister(
+                    tx,
+                    user.id,
+                    verificationTokenHash,
+                    verificationExpiresAt
+                );
+            }
 
             return {
                 id: user.id,
@@ -70,12 +73,39 @@ export class AuthRepository {
         tx: Prisma.TransactionClient,
         userId: string
     ) {
-        return tx.wallet.create({
-            data: {
-                userId,
-                currency: 'IDR',
-            },
-        });
+        const { generateAccountNumber } = await import('../../../shared/utils/account-number.utils.js');
+        
+        // Generate unique account number with collision retry
+        let attempts = 0;
+        const maxAttempts = 10;
+
+        while (attempts < maxAttempts) {
+            const accountNumber = generateAccountNumber();
+
+            try {
+                return await tx.wallet.create({
+                    data: {
+                        userId,
+                        currency: 'IDR',
+                        accountNumber,
+                    },
+                });
+            } catch (error: any) {
+                // P2002 = Unique constraint violation
+                if (error.code === 'P2002' && error.meta?.target?.includes('account_number')) {
+                    attempts++;
+                    if (attempts >= maxAttempts) {
+                        throw new Error('Failed to generate unique account number after multiple attempts');
+                    }
+                    // Retry with new account number
+                    continue;
+                }
+                // Other errors, rethrow
+                throw error;
+            }
+        }
+
+        throw new Error('Failed to create wallet: max account number generation attempts exceeded');
     }
 
     async createUserLimit(
@@ -194,6 +224,17 @@ export class AuthRepository {
         return prisma.user.findUnique({
             where: {id},
         })
+    }
+
+    async updateEmailVerificationStatus(userId: string, isVerified: boolean) {
+        return prisma.user.update({
+            where: { id: userId },
+            data: {
+                isEmailVerified: isVerified,
+                emailVerificationToken: null,
+                emailVerificationExpiresAt: null,
+            },
+        });
     }
     
 

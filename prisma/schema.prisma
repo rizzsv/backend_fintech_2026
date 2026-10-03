@@ -1,5 +1,6 @@
 generator client {
   provider = "prisma-client-js"
+  binaryTargets = ["native", "windows", "debian-openssl-3.0.x"]
 }
 
 datasource db {
@@ -28,6 +29,7 @@ model User {
   emailVerificationExpiresAt DateTime?
   emailVerificationToken     String?
   isEmailVerified            Boolean                 @default(false)
+  isDemo                     Boolean                 @default(false) @map("is_demo")
   payments                   Payment[]
   auditLogs                  AuditLog[]
   fraudCases                 FraudCase[]
@@ -40,9 +42,26 @@ model User {
   wallet                     Wallet?
   withdrawals                Withdrawal[]
   otpCodes                   OtpCode[]
+  oauthAccounts              OAuthAccount[]
 
   @@index([kycStatus], map: "idx_users_kyc_status")
   @@map("users")
+}
+
+model OAuthAccount {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  provider          String   // 'google', 'github', etc.
+  providerAccountId String   @map("provider_account_id") // Provider's stable user ID (Google 'sub')
+  email             String?  // Email from provider (for audit/display)
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@map("oauth_accounts")
 }
 
 model OtpCode {
@@ -64,6 +83,7 @@ model OtpCode {
 
 model Wallet {
   id                   String        @id @default(uuid())
+  accountNumber        String        @unique @map("account_number")
   currency             String        @default("IDR")
   balance              Decimal       @default(0) @db.Decimal(18, 2)
   version              Int           @default(0)
@@ -79,6 +99,7 @@ model Wallet {
 
   @@unique([userId, currency])
   @@index([userId], map: "idx_wallets_user_id")
+  @@index([accountNumber], map: "idx_wallets_account_number")
   @@map("wallets")
 }
 
@@ -350,6 +371,7 @@ enum KycStatus {
 }
 
 enum OtpPurpose {
+  REGISTRATION
   LOGIN_2FA
   WITHDRAWAL
   PASSWORD_RESET

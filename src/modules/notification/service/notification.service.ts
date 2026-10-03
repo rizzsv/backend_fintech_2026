@@ -1,9 +1,12 @@
 import { verificationTemplate } from "../templates/email-verification";
 import { transferSuccessTemplate } from "../templates/transfer-success";
+import { otpRegisterTemplate } from "../templates/otp-register.template";
+import { otpLoginTemplate } from "../templates/otp-login.template";
+import { otpPasswordResetTemplate } from "../templates/otp-password-reset.template";
 import { TransferSuccessPayload, NotificationJob, CreateNotificationInput, NotificationResponse } from "../types/notification.types";
 import { emailService } from "./email.service";
 import { NOTIFICATION_JOB, notificationQueue } from "../queue/notification.queue";
-import { Prisma, Notification, NotificationStatus } from "@prisma/client";
+import { Prisma, Notification, NotificationStatus, OtpPurpose } from "@prisma/client";
 import { notificationRepository } from "../repositories/notification.repository";
 import { notificationPreferenceService } from "./notification-preference.service";
 import { BusinessLogger } from "../../../shared/logger/business-logger";
@@ -74,16 +77,37 @@ export class NotificationService {
         email: string;
         otp: string;
         method: "email" | "sms";
+        purpose?: OtpPurpose;
     }) {
-        const title =
-            input.method === "sms"
-                ? "Your SMS verification code"
-                : "Your email verification code";
+        const expiresInMinutes = 10;
+        
+        let subject: string;
+        let htmlContent: string;
+
+        // Determine template and subject based on purpose
+        switch (input.purpose) {
+            case OtpPurpose.REGISTRATION:
+                subject = "Complete Your Registration";
+                htmlContent = otpRegisterTemplate({ otp: input.otp, expiresInMinutes });
+                break;
+            case OtpPurpose.LOGIN_2FA:
+                subject = "Verify Your Login";
+                htmlContent = otpLoginTemplate({ otp: input.otp, expiresInMinutes });
+                break;
+            case OtpPurpose.PASSWORD_RESET:
+                subject = "Reset Your Password";
+                htmlContent = otpPasswordResetTemplate({ otp: input.otp, expiresInMinutes });
+                break;
+            default:
+                // Fallback for backward compatibility
+                subject = "Your Verification Code";
+                htmlContent = otpRegisterTemplate({ otp: input.otp, expiresInMinutes });
+        }
 
         return emailService.send(
             input.email,
-            title,
-            `Your verification code is ${input.otp}. It expires in 10 minutes.`
+            subject,
+            htmlContent
         );
     }
 
@@ -267,12 +291,18 @@ export class NotificationService {
     }
 
     async markAllAsRead(
-        userId: string
-    ): Promise<Number> {
-        const result = await notificationRepository.markAllAsRead(userId);
+            userId: string
+        ): Promise<Number> {
+            const result = await notificationRepository.markAllAsRead(userId);
 
-        return result.count;
-    }
+            return result.count;
+        }
+
+        async getUnreadCount(
+            userId: string
+        ): Promise<number> {
+            return notificationRepository.countUnread(userId);
+        }
 
     async updateStatus(
         id: string,

@@ -3,6 +3,8 @@ import { loginRateLimiter, refreshRateLimiter } from "../../shared/middleware/ra
 import { validateRequest } from "../../shared/middleware/requestValidator.middleware";
 import { authController } from "./controllers/auth.controller";
 import { otpController } from "./controllers/otp.controller";
+import { demoController } from "./controllers/demo.controller";
+import { googleOAuthController } from "./controllers/google-oauth.controller";
 import { loginSchema, logoutSchema, refreshTokenSchema, registerSchema, resendVerificationSchema, verifyEmailSchema } from "./validators/auth.validator";
 import { authMiddleware } from "../../shared/middleware/auth.middleware";
 
@@ -34,6 +36,16 @@ router.post(
   "/verify-email",
   validateRequest(verifyEmailSchema, "body"),
   authController.verifyEmail.bind(authController)
+);
+
+router.post(
+  "/verify-email-otp",
+  authController.verifyEmailOtp.bind(authController)
+);
+
+router.post(
+  "/resend-email-verification-otp",
+  authController.resendEmailVerificationOtp.bind(authController)
 );
 
 /**
@@ -82,5 +94,43 @@ router.post(
   validateRequest(resendVerificationSchema),
   authController.resendVerificationEmail.bind(authController)
 )
+
+router.post(
+  "/forgot-password",
+  authController.forgotPassword.bind(authController)
+);
+
+router.post(
+  "/verify-password-reset-otp",
+  authController.verifyPasswordResetOtp.bind(authController)
+);
+
+router.post(
+  "/reset-password",
+  authController.resetPassword.bind(authController)
+);
+
+// Google OAuth endpoints
+router.get(
+  "/google",
+  googleOAuthController.initiateOAuth.bind(googleOAuthController)
+);
+
+router.get(
+  "/google/callback",
+  googleOAuthController.handleCallback.bind(googleOAuthController)
+);
+
+// Demo mode endpoints
+router.post(
+  "/demo",
+  demoController.createDemoAccount.bind(demoController)
+);
+
+router.post(
+  "/demo/reset",
+  authMiddleware,
+  demoController.resetDemoAccount.bind(demoController)
+);
 
 export default router;

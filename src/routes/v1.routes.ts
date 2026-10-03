@@ -3,7 +3,7 @@ import authRoutes from "../modules/auth/auth.routes";
 import walletRoutes from "../modules/wallet/wallet.routes";
 import transactionRoutes from "../modules/transaction/transaction.route";
 import paymentRoutes from "../modules/payment/payment.routes";
-import notificationRoutes from "../modules/notification/notification-preference.routes";
+import notificationRoutes from "../modules/notification/notification.routes";
 import withdrawalRoutes from "../modules/withdrawal/withdrawal.routes";
 import { withdrawalWebhookController } from "../modules/withdrawal/webhook/withdrawal-webhook.controller";
 

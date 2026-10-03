@@ -14,7 +14,8 @@ export interface TransactionQueryDTO {
 }
 
 export interface TransferDTO {
-    toWalletId: string;
+    toWalletId?: string; // Deprecated: internal wallet ID (still supported for backward compatibility)
+    recipientAccountNumber?: string; // Preferred: user-facing account number
     amount: number;
     description?: string;
     idempotencyKey: string;

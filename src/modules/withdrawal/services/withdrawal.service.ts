@@ -1,4 +1,4 @@
-import { EntryType, LedgerEntryType, Prisma, TransactionStatus, TransactionType, WithdrawalMethod, withdrawalStatus } from "@prisma/client";
+import { EntryType, LedgerEntryType, NotificationChannel, Prisma, TransactionStatus, TransactionType, WithdrawalMethod, withdrawalStatus } from "@prisma/client";
 import { prisma } from "../../../shared/config/database";
 import { retry } from "../../../shared/database/retry";
 import { BusinessLogger } from "../../../shared/logger/business-logger";
@@ -12,6 +12,9 @@ import { withdrawalBusinessValidator } from "../validators/withdrawal.business.v
 import { withdrawalQueue } from "../queue/withdrawal.queue";
 import { formatWithdrawalResponse } from "../utils/withdrawal.mapper";
 import { withdrawalRiskService } from "../security/withdrawal-risk.service";
+import { notificationService } from "../../notification/service/notification.service";
+import { NotificationType } from "../../notification/types/notification.types";
+import { notificationDispatcherService } from "../../notification/service/notification-dispatcher.service";
 
 export const withdrawalService = {
    /**
@@ -335,37 +338,54 @@ export const withdrawalService = {
 
             await auditService.log({
 
-                userId,
+                            userId,
 
 
-                action:
-                "WITHDRAWAL_CREATED",
+                            action:
+                            "WITHDRAWAL_CREATED",
 
 
-                resource:
-                "WITHDRAWAL",
+                            resource:
+                            "WITHDRAWAL",
 
 
-                entityId:
-                withdrawal.id,
+                            entityId:
+                            withdrawal.id,
 
 
-                metadata:{
+                            metadata:{
 
-                    referenceNumber,
+                                referenceNumber,
 
-                    amount:
-                    amount.toString(),
+                                amount:
+                                amount.toString(),
 
-                    risk
+                                risk
 
-                }
+                            }
 
-            });
+                        });
+
+                        // Send withdrawal pending notification (multi-channel)
+                        notificationDispatcherService.dispatchFinancialNotification({
+                            userId,
+                            type: NotificationType.WITHDRAW_PENDING,
+                            title: "Penarikan sedang diproses",
+                            message: `Penarikan sebesar Rp${amount.toNumber().toLocaleString('id-ID')} sedang diproses. Anda akan menerima notifikasi setelah selesai.`,
+                            resource: "WITHDRAWAL",
+                            entityId: withdrawal.id,
+                            metadata: {
+                                referenceNumber,
+                                amount: amount.toString(),
+                                fee: fee.toString(),
+                                netAmount: netAmount.toString(),
+                            },
+                        }, tx).catch(() => {
+                            // Fire and forget
+                        });
 
 
-
-            return {
+                        return {
 
                 withdrawalId:
                 withdrawal.id,

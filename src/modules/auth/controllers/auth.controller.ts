@@ -32,7 +32,7 @@ export class AuthController {
       return ResponseUtils.success(
         res,
         result,
-        "Login Successful"
+        "Login successful"
       )
     } catch (error) {
       next(error);
@@ -99,6 +99,44 @@ export class AuthController {
     }
   }
 
+  async verifyEmailOtp(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ) {
+    try {
+      const { email, otp } = req.body;
+      const result = await authService.verifyEmailOtp(email, otp);
+
+      return ResponseUtils.success(
+        res,
+        result,
+        "Email verified successfully"
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async resendEmailVerificationOtp(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ) {
+    try {
+      const { email } = req.body;
+      const result = await authService.resendEmailVerificationOtp(email);
+
+      return ResponseUtils.success(
+        res,
+        result,
+        "OTP sent successfully"
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async verifyEmail(
     req: Request,
     res: Response,
@@ -155,6 +193,62 @@ export class AuthController {
         null,
         "Verification email sent successfully"
       )
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async forgotPassword(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ) {
+    try {
+      const result = await authService.forgotPassword(req.body.email);
+
+      return ResponseUtils.success(
+        res,
+        result,
+        result.message
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async verifyPasswordResetOtp(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ) {
+    try {
+      const { email, otp } = req.body;
+      const result = await authService.verifyPasswordResetOtp(email, otp);
+
+      return ResponseUtils.success(
+        res,
+        result,
+        "OTP verified successfully"
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async resetPassword(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ) {
+    try {
+      const { email, newPassword } = req.body;
+      const result = await authService.resetPassword(email, newPassword);
+
+      return ResponseUtils.success(
+        res,
+        result,
+        result.message
+      );
     } catch (error) {
       next(error);
     }

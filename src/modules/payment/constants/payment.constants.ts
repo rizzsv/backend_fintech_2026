@@ -1,5 +1,6 @@
 export const PAYMENT_PROVIDER = {
     MIDTRANS: "MIDTRANS",
+    SIMULATED: "SIMULATED",
 } as const;
 
 export const PAYMENT_METHOD = {

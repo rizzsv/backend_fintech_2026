@@ -1,6 +1,7 @@
 import {
     KycRequest,
     KycStatus,
+    NotificationChannel,
 } from "@prisma/client";
 
 import {
@@ -21,6 +22,8 @@ import { KycStorage } from "../storage/kyc.storage";
 import { PrismaKycRepository } from "../repositories/prisma-kyc.repository";
 import { kycStorage } from "../storage/local-kyc.storage";
 import { AppError } from "../../../shared/errors/AppError";
+import { notificationService } from "../../notification/service/notification.service";
+import { NotificationType } from "../../notification/types/notification.types";
 
 
 export class KycService {
@@ -137,29 +140,42 @@ export class KycService {
              * 6. Create KYC record
              */
             const kyc =
-                await this.kycRepository
-                    .create({
-                        user: {
-                            connect: {
-                                id: userId,
-                            },
-                        },
+                            await this.kycRepository
+                                .create({
+                                    user: {
+                                        connect: {
+                                            id: userId,
+                                        },
+                                    },
 
-                        documentPath,
+                                    documentPath,
 
-                        selfiePath,
+                                    selfiePath,
 
-                        status:
-                            KycStatus.PENDING,
-                    });
+                                    status:
+                                        KycStatus.PENDING,
+                                });
+
+                        // Send KYC submitted notification
+                        notificationService.createNotification({
+                            userId,
+                            type: NotificationType.KYC_SUBMITTED,
+                            channel: NotificationChannel.IN_APP,
+                            title: "Dokumen KYC diterima",
+                            message: "Dokumen KYC Anda telah diterima dan sedang dalam proses verifikasi. Kami akan memberitahu Anda setelah proses selesai.",
+                            resource: "KYC",
+                            entityId: kyc.id,
+                        }).catch(() => {
+                            // Fire and forget
+                        });
 
 
-            /**
-             * 7. Response
-             */
-            return this.toResponse(
-                kyc
-            );
+                        /**
+                         * 7. Response
+                         */
+                        return this.toResponse(
+                            kyc
+                        );
 
         } catch (error) {
 

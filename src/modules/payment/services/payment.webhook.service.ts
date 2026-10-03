@@ -17,6 +17,7 @@ import {injectTraceContext} from "../../../shared/telemetry/worker-tracing";
 import { withSpan } from "../../../shared/telemetry/span";
 import { notificationService } from "../../notification/service/notification.service";
 import { NotificationType } from "../../notification/types/notification.types";
+import { notificationDispatcherService } from "../../notification/service/notification-dispatcher.service";
 
 
 interface MidtransNotification {
@@ -73,6 +74,29 @@ export class PaymentWebhookService {
 
             if (!payment) {
                 throw new Error("Payment not found");
+            }
+
+            //---------------------------------------
+            // DEMO BYPASS: Ignore webhooks for demo users
+            //---------------------------------------
+            const user = await tx.user.findUnique({
+                where: { id: payment.userId },
+                select: { id: true, isDemo: true },
+            });
+
+            if (user?.isDemo) {
+                BusinessLogger.warn(
+                    "Ignoring webhook for demo payment",
+                    {
+                        referenceNumber: payload.order_id,
+                        userId: payment.userId,
+                    }
+                );
+
+                return {
+                    message: "Demo payment webhook ignored",
+                    demo: true,
+                };
             }
 
             if (payment.status === PaymentStatus.SUCCESS) {
@@ -166,13 +190,12 @@ export class PaymentWebhookService {
                 },
             });
 
-            await notificationService.createNotification(
+            await notificationDispatcherService.dispatchFinancialNotification(
                 {
                     userId: payment.userId,
                     type: NotificationType.TOPUP_SUCCESS,
-                    channel: NotificationChannel.IN_APP,
                     title: "Top up berhasil",
-                    message: `Top up sebesar ${payment.amount.toString()} berhasil masuk ke wallet Anda.`,
+                    message: `Top up sebesar Rp${payment.amount.toNumber().toLocaleString('id-ID')} berhasil masuk ke wallet Anda.`,
                     resource: "PAYMENT",
                     entityId: payment.id,
                     metadata: {
