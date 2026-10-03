@@ -27,8 +27,11 @@ from "./shared/middleware/errorHandler.middleware";
 
 
 const app = express();
-const corsOptions = {
-    origin: [
+
+// Production CORS: use FRONTEND_URL from env, fallback to localhost in development
+const allowedOrigins = process.env.NODE_ENV === 'production' && process.env.FRONTEND_URL
+    ? [process.env.FRONTEND_URL]
+    : [
         "http://localhost:3000",
         "http://localhost:3001",
         "http://localhost:3002",
@@ -36,7 +39,10 @@ const corsOptions = {
         "http://127.0.0.1:3001",
         "http://127.0.0.1:3002",
         "http://172.22.63.252:3002",
-    ],
+    ];
+
+const corsOptions = {
+    origin: allowedOrigins,
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: [
