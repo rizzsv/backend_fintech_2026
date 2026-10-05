@@ -4,7 +4,6 @@ import pinoHttp from "pino-http";
 
 import { logger } from "./shared/logger/logger";
 
-import { setupBullBoard } from "./shared/monitoring/bull-board";
 import { paymentQueueHealthCheck } from "./shared/monitoring/queue.health";
 
 import healthRoutes from "./routes/health.routes";
@@ -115,9 +114,13 @@ app.use(
 
 
 // Bull Board disabled for Vercel serverless deployment
-// Conditional import prevents BullMQ dependency errors
+// Dynamic import prevents BullMQ dependency errors
 if (process.env.ENABLE_BULL_BOARD === 'true') {
-    setupBullBoard(app);
+    import('./shared/monitoring/bull-board.js').then(({ setupBullBoard }) => {
+        setupBullBoard(app);
+    }).catch((err) => {
+        logger.error('Failed to load Bull Board:', err);
+    });
 }
 
 
