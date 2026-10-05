@@ -54,7 +54,7 @@ const schema = z.object({
     BULL_BOARD_PASSWORD: z.string().default(""),
 
     // Queue provider: 'bullmq' for persistent workers, 'qstash' for serverless
-    QUEUE_PROVIDER: z.enum(['bullmq', 'qstash']).optional().default('bullmq'),
+    QUEUE_PROVIDER: z.enum(['bullmq', 'qstash', 'none']).optional().default('none'),
 
     // QStash configuration (optional - only if QUEUE_PROVIDER=qstash)
     QSTASH_URL: z.string().url().optional(),
