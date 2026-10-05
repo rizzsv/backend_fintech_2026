@@ -1,0 +1,59 @@
+# Vercel Deployment - Ignore unnecessary files
+
+# Development
+node_modules
+.env
+.env.*
+!.env.vercel.example
+*.log
+npm-debug.log*
+
+# Docker
+docker-compose.yml
+Dockerfile
+Dockerfile.dev
+.dockerignore
+docker/
+
+# Testing
+test/
+coverage/
+.vitest/
+vitest.config.ts
+test-output.txt
+
+# Documentation
+docs/
+perfomance/
+*.md
+!README.md
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Build artifacts (generated on Vercel)
+dist/
+build/
+
+# Local database
+*.db
+*.sqlite
+
+# Logs
+logs/
+*.log
+
+# Redis dumps
+dump.rdb
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+
+# Agents/Skills
+.agents/
+.claude/
+skills-lock.json

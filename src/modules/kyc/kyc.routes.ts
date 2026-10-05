@@ -32,6 +32,22 @@ import { reverificationController } from "./controllers/reverification.controlle
 const router =
     Router();
 
+// KYC document upload disabled for Vercel deployment (ephemeral filesystem)
+// UI should show "KYC unavailable in demo deployment"
+router.post(
+    "/documents",
+    authMiddleware,
+    (req, res) => {
+        res.status(501).json({
+            success: false,
+            error: "KYC document upload unavailable in demo deployment",
+            message: "File storage not supported in serverless environment"
+        });
+    }
+);
+
+// Original KYC upload route (commented for reference)
+/*
 router.post(
     "/documents",
 
@@ -55,6 +71,7 @@ router.post(
         kycController
     )
 );
+*/
 
 router.post(
     "/:kycId/verify",

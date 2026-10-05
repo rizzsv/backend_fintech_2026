@@ -4,12 +4,17 @@ import { logger } from "./shared/logger/logger";
 import { sdk }from "./shared/telemetry/tracing";
 import { closeQueues }from "./shared/queue/shutdown";
 import { redis }from "./shared/config/redis";
-// Workers and schedulers disabled for debugging
+import { env } from "./shared/config/env";
+
+// Import workers/schedulers conditionally based on QUEUE_PROVIDER
+// QUEUE_PROVIDER=qstash: workers disabled (QStash HTTP endpoints handle jobs)
+// QUEUE_PROVIDER=bullmq: workers enabled (BullMQ processes jobs)
+
+// Payment workers/schedulers remain disabled for debugging
 // import { paymentWorker }from "./modules/payment/workers/payment.worker";
 // import { paymentScheduler }from "./modules/payment/jobs/payment.scheduler";
 // import { paymentWebhookWorker } from "./modules/payment/workers/payment-webhook.worker";
 // import { paymentDLQWorker } from "./modules/payment/dead-letter/payment-dlq.worker";
-// import {withdrawalReconciliationScheduler} from "./modules/withdrawal/jobs/withdrawal.reconciliation.scheduler";
 // import "./modules/withdrawal/workers/withdrawal.worker";
 // import "./modules/notification/workers/notification.worker";
 // import "./modules/payment/workers/payment.worker";
@@ -19,6 +24,7 @@ import { redis }from "./shared/config/redis";
 
 
 let server: any;
+let withdrawalReconciliationScheduler: any;
 
 
 async function bootstrap() {
@@ -29,8 +35,13 @@ async function bootstrap() {
         // await sdk.start();
         logger.warn('Telemetry SDK disabled - OTLP collector not running');
 
-        const PORT = parseInt(process.env.PORT || '3000', 10);
+        // Conditional import based on QUEUE_PROVIDER (inside async function to avoid top-level await)
+        if (env.QUEUE_PROVIDER === 'bullmq') {
+            const module = await import("./modules/withdrawal/jobs/withdrawal.reconciliation.scheduler.js");
+            withdrawalReconciliationScheduler = module.withdrawalReconciliationScheduler;
+        }
 
+        const PORT = parseInt(process.env.PORT || '3000', 10);
 
 
         server =
@@ -42,16 +53,28 @@ async function bootstrap() {
                     logger.info(
                         `Server running on port ${PORT}`
                     );
+                    logger.info(
+                        `Queue provider: ${env.QUEUE_PROVIDER || 'bullmq'}`
+                    );
+                    logger.info(
+                        `Payment mode: ${env.PAYMENT_MODE}`
+                    );
 
                 }
             );
 
 
+        // Start withdrawal reconciliation scheduler based on QUEUE_PROVIDER
+        if (env.QUEUE_PROVIDER === 'bullmq' && withdrawalReconciliationScheduler) {
+            withdrawalReconciliationScheduler.start();
+            logger.info('Withdrawal reconciliation scheduler started (node-cron)');
+        } else if (env.QUEUE_PROVIDER === 'qstash') {
+            logger.info('Withdrawal reconciliation: using QStash external schedule (node-cron disabled)');
+        }
 
-        // Schedulers disabled temporarily for startup debugging
+        // Other schedulers disabled temporarily for startup debugging
         // await paymentScheduler.bootstrap();
         // startNotificationQueueMetricCollector();
-        // withdrawalReconciliationScheduler.start();
         logger.warn('Background schedulers disabled for debugging');
 
         logger.info(
@@ -77,7 +100,11 @@ async function bootstrap() {
 }
 
 
-bootstrap();
+// Only start the server if this file is run directly (not imported by Vercel)
+// Vercel imports the app from api/index.ts instead
+if (require.main === module) {
+    bootstrap();
+}
 
 
 
@@ -109,6 +136,11 @@ async function gracefulShutdown(
                 }
             );
 
+        }
+
+        // Stop withdrawal reconciliation scheduler
+        if (env.QUEUE_PROVIDER === 'bullmq' && withdrawalReconciliationScheduler) {
+            withdrawalReconciliationScheduler.stop();
         }
 
         // withdrawalReconciliationScheduler.stop();

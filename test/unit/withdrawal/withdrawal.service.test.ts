@@ -51,6 +51,13 @@ vi.mock("../../../src/modules/withdrawal/queue/withdrawal.queue", () => ({
     },
 }));
 
+// Mock withdrawal execution service for synchronous processing
+vi.mock("../../../src/modules/withdrawal/services/withdrawal.execution.service", () => ({
+    withdrawalExecutionService: {
+        executeWithdrawal: vi.fn().mockResolvedValue({ success: true }),
+    },
+}));
+
 const AMOUNT = 100_000;
 
 function buildTxStub() {

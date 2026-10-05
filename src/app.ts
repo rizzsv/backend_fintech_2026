@@ -12,6 +12,7 @@ import metricsRoutes from "./routes/metrics.routes";
 import v1Routes from "./routes/v1.routes";
 import kycRoutes from "./modules/kyc/kyc.routes";
 import dashboardRoutes from "./modules/dashboard/dashboard.route";
+import workersRoutes from "./routes/workers.routes";
 
 import { globalRateLimiter } 
 from "./shared/middleware/rateLimiter.middleware";
@@ -24,6 +25,11 @@ from "./shared/middleware/trace.middleware";
 
 import { errorHandler } 
 from "./shared/middleware/errorHandler.middleware";
+
+import { verifyQStashSignature } 
+from "./shared/queue/qstash.middleware";
+
+import { env } from "./shared/config/env";
 
 
 const app = express();
@@ -82,6 +88,17 @@ app.use(
 app.use(cors(corsOptions));
 app.options(/.*/, cors(corsOptions));
 
+// QStash worker routes with raw body parser for signature verification
+// MUST be registered BEFORE express.json() middleware
+if (env.QUEUE_PROVIDER === 'qstash') {
+    app.use(
+        "/api/workers",
+        express.text({ type: "application/json" }),
+        verifyQStashSignature,
+        workersRoutes
+    );
+}
+
 app.use(
     express.json()
 );
@@ -97,7 +114,11 @@ app.use(
 );
 
 
-setupBullBoard(app);
+// Bull Board disabled for Vercel serverless deployment
+// Conditional import prevents BullMQ dependency errors
+if (process.env.ENABLE_BULL_BOARD === 'true') {
+    setupBullBoard(app);
+}
 
 
 app.get(

@@ -78,9 +78,10 @@ export class WithdrawalRepository {
     }
 
     async findProcessing(
-        tx: Tx
+        tx?: Tx
     ): Promise<Withdrawal[]> {
-        return tx.withdrawal.findMany({
+        const client = tx || prisma;
+        return client.withdrawal.findMany({
             where: {
                 status: withdrawalStatus.PROCESSING
             },
@@ -146,6 +147,33 @@ export class WithdrawalRepository {
                 providerResponse
             }
         })
+    }
+
+    /**
+     * Conditionally update withdrawal status only if current status matches expected
+     * Used for concurrent-safe reconciliation
+     * Returns { count: 1 } if updated, { count: 0 } if status changed
+     */
+    async updateStatusConditional(
+        id: string,
+        expectedStatus: withdrawalStatus,
+        newStatus: withdrawalStatus,
+        additionalData?: {
+            providerResponse?: Prisma.InputJsonValue;
+            processedAt?: Date;
+            failedReason?: string;
+        }
+    ) {
+        return prisma.withdrawal.updateMany({
+            where: {
+                id,
+                status: expectedStatus
+            },
+            data: {
+                status: newStatus,
+                ...additionalData
+            }
+        });
     }
 
     async delete(

@@ -242,12 +242,14 @@ export class WithdrawalWebhookService {
 
                     if (wallet) {
 
-
-                        await tx.wallet.update({
+                        // Optimistic lock: prevent duplicate refunds from concurrent webhooks
+                        const updated = await tx.wallet.updateMany({
 
                             where: {
                                 id:
-                                    wallet.id
+                                    wallet.id,
+                                version:
+                                    wallet.version
                             },
 
 
@@ -258,11 +260,20 @@ export class WithdrawalWebhookService {
                                 {
                                     increment:
                                         withdrawal.amount
+                                },
+
+                                version:
+                                {
+                                    increment: 1
                                 }
 
                             }
 
                         });
+
+                        if (updated.count === 0) {
+                            throw new Error('Wallet version conflict - refund already processed');
+                        }
 
 
                     }

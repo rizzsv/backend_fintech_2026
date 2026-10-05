@@ -33,6 +33,21 @@ const schema = z.object({
 
     // Payment mode: 'simulated' for portfolio/demo, 'production' for real payment
     PAYMENT_MODE: z.enum(['simulated', 'production']).default('simulated'),
+
+    // Queue provider: 'bullmq' for persistent workers, 'qstash' for serverless
+    QUEUE_PROVIDER: z.enum(['bullmq', 'qstash']).optional().default('bullmq'),
+
+    // QStash configuration (required when QUEUE_PROVIDER=qstash)
+    QSTASH_URL: z.string().url().optional(),
+    QSTASH_TOKEN: z.string().optional(),
+    QSTASH_CURRENT_SIGNING_KEY: z.string().optional(),
+    QSTASH_NEXT_SIGNING_KEY: z.string().optional(),
+    
+    // Backend URL for QStash callbacks (required when QUEUE_PROVIDER=qstash)
+    BACKEND_URL: z.string().url().optional(),
+    
+    // Frontend URL for CORS (production)
+    FRONTEND_URL: z.string().url().optional(),
         
 });
 

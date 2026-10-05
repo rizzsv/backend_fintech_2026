@@ -9,8 +9,9 @@ import { CreateWithdrawalDTO, WithdrawalConfig, WithdrawalResponse } from "../ty
 import { WITHDRAWAL_CONSTANTS } from "../constants/withdrawal.constants";
 import { auditService } from "../../audit/services/audit.services";
 import { withdrawalBusinessValidator } from "../validators/withdrawal.business.validator";
-import { withdrawalQueue } from "../queue/withdrawal.queue";
 import { formatWithdrawalResponse } from "../utils/withdrawal.mapper";
+// Queue provider removed for Vercel serverless deployment
+// import { queueProvider } from "../../../shared/queue/queue-provider.factory";
 import { withdrawalRiskService } from "../security/withdrawal-risk.service";
 import { notificationService } from "../../notification/service/notification.service";
 import { NotificationType } from "../../notification/types/notification.types";
@@ -413,6 +414,16 @@ export const withdrawalService = {
             };
 
 
+        })
+        .then(async (result) => {
+            // Synchronous processing for Vercel serverless deployment
+            // Execution completes before HTTP response (no background work)
+            if (process.env.PAYMENT_MODE === 'simulated') {
+                const { withdrawalExecutionService } = await import('./withdrawal.execution.service.js');
+                await withdrawalExecutionService.executeWithdrawal(result.withdrawalId);
+            }
+            // Real money mode would require proper async worker (not supported in this deployment)
+            return result;
         });
 
 
