@@ -1,7 +1,7 @@
 import { Counter, Gauge, Histogram } from "prom-client";
 
 import { register } from "../../../shared/metrics/metrics";
-import { notificationQueue } from "../queue/notification.queue";
+import { env } from "../../../shared/config/env";
 
 export const notificationCreatedCounter =
     new Counter({
@@ -133,8 +133,18 @@ export const notificationQueueFailedGauge =
     });
 
 export async function updateNotificationQueueMetrics() {
+    // Skip in serverless mode - no BullMQ queue available
+    if (env.QUEUE_PROVIDER !== 'bullmq') {
+        return;
+    }
+
     try {
-        const counts = await notificationQueue.getJobCounts(
+        const { notificationQueue } = await import("../queue/notification.queue.js");
+        // In serverless mode, notificationQueue is a wrapper without getJobCounts
+        if (!notificationQueue || typeof (notificationQueue as any).getJobCounts !== 'function') {
+            return;
+        }
+        const counts = await (notificationQueue as any).getJobCounts(
             "waiting",
             "active",
             "failed"

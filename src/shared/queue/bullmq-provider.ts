@@ -7,24 +7,14 @@ import { paymentWebhookQueue } from "../../modules/payment/queue/payment-webhook
 /**
  * BullMQ implementation of queue provider
  * Uses existing BullMQ queues and workers
+ * In serverless mode, queue.add operations are no-ops
  */
 export class BullMQProvider implements IQueueProvider {
     async enqueueWithdrawal(withdrawalId: string, options?: QueueJobOptions): Promise<void> {
         await withdrawalQueue.add(
             'process-withdrawal',
             { withdrawalId },
-            {
-                attempts: options?.attempts ?? 5,
-                backoff: options?.backoff ? {
-                    type: options.backoff.type,
-                    delay: options.backoff.delay,
-                } : {
-                    type: 'exponential',
-                    delay: 2000,
-                },
-                delay: options?.delay,
-                jobId: options?.jobId,
-            }
+            { jobId: options?.jobId }
         );
     }
 
@@ -32,12 +22,7 @@ export class BullMQProvider implements IQueueProvider {
         await notificationQueue.add(
             'send-notification',
             { notificationId },
-            {
-                attempts: options?.attempts ?? 3,
-                backoff: options?.backoff,
-                delay: options?.delay,
-                jobId: options?.jobId,
-            }
+            { jobId: options?.jobId }
         );
     }
 
@@ -49,12 +34,7 @@ export class BullMQProvider implements IQueueProvider {
         await paymentQueue.add(
             jobType,
             data,
-            {
-                attempts: options?.attempts ?? 5,
-                backoff: options?.backoff,
-                delay: options?.delay,
-                jobId: options?.jobId,
-            }
+            { jobId: options?.jobId }
         );
     }
 
@@ -62,12 +42,7 @@ export class BullMQProvider implements IQueueProvider {
         await paymentWebhookQueue.add(
             "process-payment-webhook",
             data,
-            {
-                attempts: options?.attempts ?? 3,
-                backoff: options?.backoff,
-                delay: options?.delay,
-                jobId: options?.jobId,
-            }
+            { jobId: options?.jobId }
         );
     }
 }
