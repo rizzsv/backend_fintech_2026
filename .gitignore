@@ -28,6 +28,12 @@ Thumbs.db
 # Vercel
 .vercel/
 
+# Compiled output in api/ (source is api/index.ts only)
+api/*.js
+api/*.js.map
+api/*.d.ts
+api/*.d.ts.map
+
 # Logs
 *.log
 npm-debug.log*
