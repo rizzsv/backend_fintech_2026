@@ -39,7 +39,7 @@ const bullAuth =
 
         users: {
 
-            [env.BULL_BOARD_USERNAME]: env.BULL_BOARD_PASSWORD,
+            [env.BULL_BOARD_USERNAME || 'admin']: env.BULL_BOARD_PASSWORD || 'admin',
         },
 
         challenge:true,

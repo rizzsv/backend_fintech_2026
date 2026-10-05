@@ -5,31 +5,51 @@ import axios from "axios";
 
 class MidtransProvider {
 
-    private snap = new midtransClient.Snap({
-        isProduction: false ,
-        serverKey: env.MIDTRANS_SERVER_KEY,
-        clientKey: env.MIDTRANS_CLIENT_KEY,
-    });
+    private snap: midtransClient.Snap | null = null;
+    private core: midtransClient.CoreApi | null = null;
 
-    private core = new midtransClient.CoreApi({
-        isProduction: false,
-        serverKey: env.MIDTRANS_SERVER_KEY,
-        clientKey: env.MIDTRANS_CLIENT_KEY,
-    });
+    private ensureInitialized() {
+        if (env.PAYMENT_MODE === 'simulated') {
+            throw new Error('Midtrans provider should not be called in simulated mode');
+        }
+        
+        if (!env.MIDTRANS_SERVER_KEY || !env.MIDTRANS_CLIENT_KEY) {
+            throw new Error('Midtrans credentials not configured');
+        }
+
+        if (!this.snap) {
+            this.snap = new midtransClient.Snap({
+                isProduction: env.MIDTRANS_IS_PRODUCTION,
+                serverKey: env.MIDTRANS_SERVER_KEY,
+                clientKey: env.MIDTRANS_CLIENT_KEY,
+            });
+        }
+
+        if (!this.core) {
+            this.core = new midtransClient.CoreApi({
+                isProduction: env.MIDTRANS_IS_PRODUCTION,
+                serverKey: env.MIDTRANS_SERVER_KEY,
+                clientKey: env.MIDTRANS_CLIENT_KEY,
+            });
+        }
+    }
 
     getSnap() {
-        return this.snap;
+        this.ensureInitialized();
+        return this.snap!;
     }
 
     async createTransaction(parameter: any) {
-        return this.snap.createTransaction(parameter);
+        this.ensureInitialized();
+        return this.snap!.createTransaction(parameter);
     }
 
 async getTransaction(orderId: string) {
+        this.ensureInitialized();
 
         const response = await fetch(
 
-            `${env.MIDTRANS_BASE_URL}/v2/${orderId}/status`,
+            `${env.MIDTRANS_BASE_URL!}/v2/${orderId}/status`,
 
             {
                 method: "GET",
@@ -38,7 +58,7 @@ async getTransaction(orderId: string) {
                     Authorization:
                         "Basic " +
                         Buffer.from(
-                            env.MIDTRANS_SERVER_KEY + ":"
+                            env.MIDTRANS_SERVER_KEY! + ":"
                         ).toString("base64"),
                 },
             }
@@ -53,10 +73,11 @@ async getTransaction(orderId: string) {
     }
 
     async cancelTransaction(orderId: string) {
+        this.ensureInitialized();
 
         const response = await fetch(
 
-            `${env.MIDTRANS_BASE_URL}/v2/${orderId}/cancel`,
+            `${env.MIDTRANS_BASE_URL!}/v2/${orderId}/cancel`,
 
             {
                 method: "POST",
@@ -65,7 +86,7 @@ async getTransaction(orderId: string) {
                     Authorization:
                         "Basic " +
                         Buffer.from(
-                            env.MIDTRANS_SERVER_KEY + ":"
+                            env.MIDTRANS_SERVER_KEY! + ":"
                         ).toString("base64"),
                 },
             }
@@ -76,10 +97,11 @@ async getTransaction(orderId: string) {
     }
 
     async expireTransaction(orderId: string) {
+        this.ensureInitialized();
 
         const response = await fetch(
 
-            `${env.MIDTRANS_BASE_URL}/v2/${orderId}/expire`,
+            `${env.MIDTRANS_BASE_URL!}/v2/${orderId}/expire`,
 
             {
                 method: "POST",
@@ -88,7 +110,7 @@ async getTransaction(orderId: string) {
                     Authorization:
                         "Basic " +
                         Buffer.from(
-                            env.MIDTRANS_SERVER_KEY + ":"
+                            env.MIDTRANS_SERVER_KEY! + ":"
                         ).toString("base64"),
                 },
             }
@@ -100,6 +122,7 @@ async getTransaction(orderId: string) {
 
 
     verifySignature(payload: any): boolean {
+        this.ensureInitialized();
 
         const signature =
             crypto
@@ -108,7 +131,7 @@ async getTransaction(orderId: string) {
                     payload.order_id +
                     payload.status_code +
                     payload.gross_amount +
-                    env.MIDTRANS_SERVER_KEY
+                    env.MIDTRANS_SERVER_KEY!
                 )
                 .digest("hex");
 
