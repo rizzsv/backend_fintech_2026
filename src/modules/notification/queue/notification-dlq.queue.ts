@@ -1,6 +1,6 @@
 import { Queue } from "bullmq";
 import { NotificationJobData } from "../types/notification-job.types";
-import { redis } from "../../../shared/config/redis";
+import { redisConnection } from "../../../shared/queue/bullmq";
 
 export const NOTIFICATION_DLQ_NAME = 'notification-dlq';
 
@@ -10,7 +10,7 @@ export const notificationDLQ =
    new Queue<NotificationJobData>(
     NOTIFICATION_DLQ_NAME,
     {
-        connection: redis,
+        connection: redisConnection,
 
         defaultJobOptions: {
             removeOnComplete: {

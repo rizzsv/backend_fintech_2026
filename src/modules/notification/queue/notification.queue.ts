@@ -1,6 +1,6 @@
 import { Queue } from "bullmq";
 
-import { redis } from "../../../shared/config/redis";
+import { redisConnection } from "../../../shared/queue/bullmq";
 
 import {
     NotificationJobData,
@@ -21,7 +21,7 @@ export const notificationQueue =
     new Queue<NotificationJobData>(
         NOTIFICATION_QUEUE_NAME,
         {
-            connection: redis,
+            connection: redisConnection,
 
             defaultJobOptions: {
 

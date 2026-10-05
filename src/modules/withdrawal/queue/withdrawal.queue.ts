@@ -1,10 +1,10 @@
 import {Queue} from 'bullmq';
-import {redis} from '../../../shared/config/redis';
+import {redisConnection} from '../../../shared/queue/bullmq';
 
 export const withdrawalQueue = new Queue(
     'withdrawal',
     {
-        connection: redis,
+        connection: redisConnection,
         defaultJobOptions: {
             attempts: 5,
             backoff: {

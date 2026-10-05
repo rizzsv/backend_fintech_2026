@@ -2,10 +2,9 @@ import { beforeAll, afterAll, beforeEach, afterEach } from "vitest";
 
 // Set required env vars for tests before any imports
 process.env.NODE_ENV = "test";
-process.env.DATABASE_URL = "postgresql://test:test@localhost:5432/test";
-process.env.REDIS_HOST = "localhost";
-process.env.REDIS_PORT = "6379";
-process.env.REDIS_PASSWORD = "test-redis-password";
+process.env.DATABASE_URL = "postgresql://test:***@localhost:5432/test";
+process.env.UPSTASH_REDIS_REST_URL = "https://test-redis.upstash.io";
+process.env.UPSTASH_REDIS_REST_TOKEN = "test-redis-token";
 process.env.JWT_SECRET = "test-jwt-secret-with-minimum-32-characters";
 process.env.LOG_LEVEL = "error";
 process.env.SMTP_HOST = "localhost";

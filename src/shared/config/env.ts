@@ -12,10 +12,9 @@ const schema = z.object({
     // App port (local dev only - Vercel ignores this)
     APP_PORT: z.string().default('3000'),
 
-    // Redis (Upstash)
-    REDIS_HOST: z.string(),
-    REDIS_PORT: z.string(),
-    REDIS_PASSWORD: z.string(),
+    // Redis (Upstash REST)
+    UPSTASH_REDIS_REST_URL: z.string().url(),
+    UPSTASH_REDIS_REST_TOKEN: z.string(),
 
     // JWT
     JWT_SECRET: z.string().min(32),
