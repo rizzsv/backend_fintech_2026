@@ -42,3 +42,21 @@ pnpm-debug.log*
 .env.development
 .env.test
 .env.production
+
+# Root config files
+/*.dockerignore
+/*.mcp.json
+/*.vercelignore
+/ Dockerfile
+/Dockerfile.dev
+/docker-compose.yml
+/package-lock.json
+/package.json
+/prisma.config.ts
+/skills-lock.json
+/tsconfig.json
+/vercel.json
+/vitest.config.ts
+
+# Keep README
+!/README.md
