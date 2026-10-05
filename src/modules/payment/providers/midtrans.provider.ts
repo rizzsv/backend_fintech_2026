@@ -13,7 +13,8 @@ class MidtransProvider {
             throw new Error('Midtrans provider should not be called in simulated mode');
         }
         
-        if (!env.MIDTRANS_SERVER_KEY || !env.MIDTRANS_CLIENT_KEY) {
+        if (!env.MIDTRANS_SERVER_KEY || env.MIDTRANS_SERVER_KEY === '' || 
+            !env.MIDTRANS_CLIENT_KEY || env.MIDTRANS_CLIENT_KEY === '') {
             throw new Error('Midtrans credentials not configured');
         }
 

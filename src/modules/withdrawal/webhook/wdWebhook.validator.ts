@@ -14,7 +14,7 @@ payload:any,
 signature:string
 ){
 
-if (!env.WITHDRAWAL_WEBHOOK_SECRET) {
+if (!env.WITHDRAWAL_WEBHOOK_SECRET || env.WITHDRAWAL_WEBHOOK_SECRET === '') {
     throw new Error('WITHDRAWAL_WEBHOOK_SECRET not configured');
 }
 

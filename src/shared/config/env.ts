@@ -36,9 +36,9 @@ const schema = z.object({
     GOOGLE_CALLBACK_URL: z.string().url(),
 
     // Midtrans (optional when PAYMENT_MODE=simulated)
-    MIDTRANS_SERVER_KEY: z.string().optional(),
-    MIDTRANS_CLIENT_KEY: z.string().optional(),
-    MIDTRANS_BASE_URL: z.string().url().optional(),
+    MIDTRANS_SERVER_KEY: z.string().default(""),
+    MIDTRANS_CLIENT_KEY: z.string().default(""),
+    MIDTRANS_BASE_URL: z.string().url().default("https://api.sandbox.midtrans.com"),
     MIDTRANS_IS_PRODUCTION: z
         .string()
         .default("false")
@@ -48,11 +48,11 @@ const schema = z.object({
     PAYMENT_MODE: z.enum(['simulated', 'production']).default('simulated'),
 
     // Webhook secrets (optional - not used in simulated mode)
-    WITHDRAWAL_WEBHOOK_SECRET: z.string().optional(),
+    WITHDRAWAL_WEBHOOK_SECRET: z.string().default(""),
 
     // Bull Board (optional - disabled in Vercel)
-    BULL_BOARD_USERNAME: z.string().optional(),
-    BULL_BOARD_PASSWORD: z.string().optional(),
+    BULL_BOARD_USERNAME: z.string().default(""),
+    BULL_BOARD_PASSWORD: z.string().default(""),
 
     // Queue provider: 'bullmq' for persistent workers, 'qstash' for serverless
     QUEUE_PROVIDER: z.enum(['bullmq', 'qstash']).optional().default('bullmq'),
@@ -72,21 +72,21 @@ const schema = z.object({
 }).superRefine((data, ctx) => {
     // Validate Midtrans credentials when not in simulated mode
     if (data.PAYMENT_MODE !== 'simulated') {
-        if (!data.MIDTRANS_SERVER_KEY) {
+        if (!data.MIDTRANS_SERVER_KEY || data.MIDTRANS_SERVER_KEY === '') {
             ctx.addIssue({
                 code: z.ZodIssueCode.custom,
                 message: "MIDTRANS_SERVER_KEY is required when PAYMENT_MODE is not 'simulated'",
                 path: ['MIDTRANS_SERVER_KEY'],
             });
         }
-        if (!data.MIDTRANS_CLIENT_KEY) {
+        if (!data.MIDTRANS_CLIENT_KEY || data.MIDTRANS_CLIENT_KEY === '') {
             ctx.addIssue({
                 code: z.ZodIssueCode.custom,
                 message: "MIDTRANS_CLIENT_KEY is required when PAYMENT_MODE is not 'simulated'",
                 path: ['MIDTRANS_CLIENT_KEY'],
             });
         }
-        if (!data.MIDTRANS_BASE_URL) {
+        if (!data.MIDTRANS_BASE_URL || data.MIDTRANS_BASE_URL === '' || data.MIDTRANS_BASE_URL === 'https://api.sandbox.midtrans.com') {
             ctx.addIssue({
                 code: z.ZodIssueCode.custom,
                 message: "MIDTRANS_BASE_URL is required when PAYMENT_MODE is not 'simulated'",
