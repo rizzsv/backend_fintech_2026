@@ -66,3 +66,7 @@ pnpm-debug.log*
 
 # Keep README
 !/README.md
+
+# AI agent tooling
+.agents/skills/
+.claude/
