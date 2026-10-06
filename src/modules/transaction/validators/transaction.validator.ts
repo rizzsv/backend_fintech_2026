@@ -44,9 +44,25 @@ export const transactionQuerySchema = z.object({
         .optional(),
 });
 
+// Base transfer schema without idempotencyKey (for request body validation)
+export const transferBodySchema = z.object({
+    toWalletId: z.string().uuid().optional(),
+    recipientAccountNumber: z.string().regex(/^[1-9][0-9]{9}$/, 'Invalid 10-digit account number').optional(),
+    amount: z.number().positive(),
+    description: z.string().max(255).optional(),
+}).refine(
+    (data) => data.toWalletId || data.recipientAccountNumber,
+    { message: 'Either toWalletId or recipientAccountNumber must be provided' }
+);
+
+// Full transfer schema with idempotencyKey (for service layer)
 export const transferSchema = z.object({
-    toWalletId: z.string().uuid(),
+    toWalletId: z.string().uuid().optional(),
+    recipientAccountNumber: z.string().regex(/^[1-9][0-9]{9}$/, 'Invalid 10-digit account number').optional(),
     amount: z.number().positive(),
     description: z.string().max(255).optional(),
     idempotencyKey: z.string().min(1).max(255),
-})
+}).refine(
+    (data) => data.toWalletId || data.recipientAccountNumber,
+    { message: 'Either toWalletId or recipientAccountNumber must be provided' }
+)

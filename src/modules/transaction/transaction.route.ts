@@ -1,6 +1,7 @@
 import { Router } from "express";
 import {
     transactionQuerySchema,
+    transferBodySchema,
     transferSchema,
 } from "./validators/transaction.validator";
 import { authMiddleware } from "../../shared/middleware/auth.middleware";
@@ -40,7 +41,7 @@ router.get(
 
 router.post(
     "/transfer",
-    validateRequest(transferSchema.omit({ idempotencyKey: true }), "body"),
+    validateRequest(transferBodySchema, "body"),
     transactionController.transfer.bind(
         transactionController
     )
